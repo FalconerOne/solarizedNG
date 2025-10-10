@@ -1,0 +1,2 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+export default async function handler(req: NextApiRequest, res: NextApiResponse){ if(req.method!=='POST') return res.status(405).end(); const { user_id, amount } = req.body; if(!user_id || !amount) return res.status(400).json({ error: 'missing params' }); const reference = 'ps_ref_' + Date.now() + '_' + Math.floor(Math.random()*10000); return res.status(200).json({ reference }); }

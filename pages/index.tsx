@@ -1,0 +1,1 @@
+import Header from '../components/Header'; import Footer from '../components/Footer'; export default function Home(){ return (<><Header /><main className="max-w-3xl mx-auto p-6"><h1 className="text-3xl font-bold mb-4">SolarizedNG GiveAway</h1><p>Welcome — join a giveaway, share with friends, and help sick children.</p></main><Footer /></>); }
