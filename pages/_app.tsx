@@ -1,28 +1,19 @@
-import { useEffect } from "react";
-import { restoreSession } from "../lib/sessionHelper";
-import { supabase } from "../lib/supabaseClient";
-import "../styles/globals.css";
+import type { AppProps } from "next/app";
+import "@/styles/globals.css";
+import Header from "@/components/Header";
 
-function MyApp({ Component, pageProps }: any) {
-  useEffect(() => {
-    restoreSession();
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <>
+      {/* Global sticky header */}
+      <Header />
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session) {
-          localStorage.setItem("sb-session", JSON.stringify(session));
-        } else {
-          localStorage.removeItem("sb-session");
-        }
-      }
-    );
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, []);
-
-  return <Component {...pageProps} />;
+      {/* Add padding so page content doesn't hide under the fixed header */}
+      <div className="pt-20 min-h-screen bg-gray-50">
+        <main className="max-w-6xl mx-auto px-4">
+          <Component {...pageProps} />
+        </main>
+      </div>
+    </>
+  );
 }
-
-export default MyApp;
