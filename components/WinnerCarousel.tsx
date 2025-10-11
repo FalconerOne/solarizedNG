@@ -1,71 +1,102 @@
 "use client";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { motion } from "framer-motion";
 
-interface Winner {
+import { useEffect, useState } from "react";
+import { supabase } from "@/utils/supabaseClient";
+import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
+
+type Winner = {
   id: string;
   full_name: string;
   phone: string;
   prize: string;
   photo_url?: string;
-  created_at: string;
-}
+  created_at?: string;
+};
 
 export default function WinnerCarousel() {
   const [winners, setWinners] = useState<Winner[]>([]);
+  const [index, setIndex] = useState(0);
+
+  // 🔹 Fetch Winners from Supabase
+  const fetchWinners = async () => {
+    const { data, error } = await supabase
+      .from("winners")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setWinners(data);
+    } else {
+      console.error("Error fetching winners:", error);
+    }
+  };
 
   useEffect(() => {
-    async function loadWinners() {
-      const { data, error } = await supabase
-        .from("winners")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(6);
-      if (!error && data) setWinners(data);
-    }
-    loadWinners();
-  }, []);
+    fetchWinners();
 
-  if (!winners.length) return null;
+    // Auto-rotate every 5 seconds
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % (winners.length || 1));
+    }, 5000);
 
-  const maskPhone = (p: string) =>
-    p?.length >= 10 ? p.slice(0, 3) + "*****" + p.slice(-2) : p;
+    return () => clearInterval(interval);
+  }, [winners.length]);
+
+  if (winners.length === 0) {
+    return (
+      <div className="bg-white/80 p-6 rounded-xl shadow text-center text-gray-600">
+        Loading winners...
+      </div>
+    );
+  }
+
+  const current = winners[index];
+
+  // Mask phone number middle digits
+  const maskedPhone =
+    current.phone?.length >= 11
+      ? `${current.phone.slice(0, 3)}*****${current.phone.slice(-3)}`
+      : current.phone;
 
   return (
-    <div className="w-full overflow-hidden bg-gradient-to-r from-pink-100 via-orange-50 to-green-100 py-6 mt-8">
-      <motion.div
-        className="flex gap-8 animate-scroll px-8"
-        initial={{ x: "100%" }}
-        animate={{ x: "-100%" }}
-        transition={{
-          repeat: Infinity,
-          duration: 30,
-          ease: "linear",
-        }}
-      >
-        {winners.map((w) => (
-          <div
-            key={w.id}
-            className="flex items-center gap-4 bg-white rounded-2xl shadow px-6 py-4 min-w-[280px]"
-          >
-            <img
-              src={w.photo_url || "/images/default-avatar.png"}
-              alt={w.full_name}
-              className="w-12 h-12 rounded-full border-2 border-pink-300"
+    <div className="relative w-full max-w-lg mx-auto">
+      <h2 className="text-2xl font-bold text-orange-600 mb-4">
+        Recent Winners 🎉
+      </h2>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={current.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.6 }}
+          className="bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center text-center"
+        >
+          <div className="relative w-24 h-24 mb-4">
+            <Image
+              src={current.photo_url || "/images/default-avatar.png"}
+              alt={current.full_name}
+              fill
+              className="rounded-full object-cover border-4 border-orange-400 shadow-md"
             />
-            <div>
-              <p className="font-semibold text-gray-800">
-                {w.full_name.split(" ")[0]} ({maskPhone(w.phone)})
-              </p>
-              <p className="text-sm text-green-700 font-medium">{w.prize}</p>
-              <p className="text-xs text-gray-400">
-                Won on {new Date(w.created_at).toLocaleDateString()}
-              </p>
-            </div>
           </div>
-        ))}
-      </motion.div>
+
+          <h3 className="text-xl font-semibold text-gray-800">
+            {current.full_name}
+          </h3>
+          <p className="text-gray-600 text-sm">{maskedPhone}</p>
+
+          <p className="mt-3 text-orange-600 font-medium">
+            🏆 {current.prize}
+          </p>
+
+          <p className="text-gray-400 text-xs mt-1">
+            {new Date(current.created_at || "").toLocaleDateString()}
+          </p>
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
