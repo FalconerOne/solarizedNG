@@ -19,8 +19,9 @@ export default function WinnerCarousel() {
   const [winners, setWinners] = useState<Winner[]>([]);
   const [index, setIndex] = useState(0);
   const [latestId, setLatestId] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Helper function to mask phone numbers
+  // Mask phone numbers (hide middle 5 digits)
   const maskPhone = (phone: string) => {
     return phone.replace(/(\d{3})\d{5}(\d{3})/, "$1*****$2");
   };
@@ -34,11 +35,12 @@ export default function WinnerCarousel() {
       .limit(10);
     if (!error && data) {
       setWinners(data);
+      setLastUpdated(new Date());
       if (data[0]?.id !== latestId) {
         setLatestId(data[0]?.id);
         confetti({
-          particleCount: 120,
-          spread: 80,
+          particleCount: 140,
+          spread: 70,
           origin: { y: 0.6 },
         });
       }
@@ -62,7 +64,6 @@ export default function WinnerCarousel() {
   }, [winners]);
 
   const winner = winners[index];
-
   if (!winner) return null;
 
   return (
@@ -71,7 +72,7 @@ export default function WinnerCarousel() {
       initial={{ opacity: 0, y: 40 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
-      className="mt-12 max-w-md w-full bg-white/80 rounded-2xl shadow-lg p-6 text-center border border-orange-200"
+      className="mt-12 max-w-md w-full bg-white/85 rounded-2xl shadow-lg p-6 text-center border border-orange-200"
     >
       <Image
         src={winner.photo_url || "/images/default-avatar.png"}
@@ -86,6 +87,14 @@ export default function WinnerCarousel() {
       <p className="text-xs text-gray-500 mt-1">
         Announced: {new Date(winner.created_at).toLocaleDateString()}
       </p>
+
+      {/* New “Last Updated” timestamp */}
+      <div className="mt-3 text-xs text-gray-400 italic">
+        Last updated:{" "}
+        {lastUpdated
+          ? lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "Loading..."}
+      </div>
     </motion.div>
   );
 }
