@@ -8,40 +8,56 @@ export default function Header() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Fetch current user session
+  // Fetch current user session on mount
   useEffect(() => {
     const getUser = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       if (session?.user) {
         setUser(session.user);
-        setShowWelcome(true); // trigger welcome popup
-        setTimeout(() => setShowWelcome(false), 4000);
+        triggerToast(
+          `Welcome back, ${
+            session.user.user_metadata?.full_name ||
+            session.user.email?.split("@")[0]
+          } 👋`
+        );
       }
       setLoading(false);
     };
     getUser();
 
-    // Listen for auth state changes
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
-        setShowWelcome(true);
-        setTimeout(() => setShowWelcome(false), 4000);
+        triggerToast(
+          `Welcome back, ${
+            session.user.user_metadata?.full_name ||
+            session.user.email?.split("@")[0]
+          } 👋`
+        );
       } else {
         setUser(null);
+        triggerToast("Goodbye 👋 See you soon!");
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Logout handler
+  // Toast handler
+  const triggerToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
@@ -60,7 +76,7 @@ export default function Header() {
         }`}
       >
         <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
-          {/* Left Side — App Title */}
+          {/* Left: App Name */}
           <div className="flex items-center gap-4">
             <Link
               href={isAdmin ? "/admin" : "/"}
@@ -71,7 +87,6 @@ export default function Header() {
               {isAdmin ? "Admin Dashboard" : "SolarizedNG Giveaway"}
             </Link>
 
-            {/* Admin quick link */}
             {isAdmin && (
               <Link
                 href="/leaderboard"
@@ -82,7 +97,7 @@ export default function Header() {
             )}
           </div>
 
-          {/* Right Side — Auth Buttons */}
+          {/* Right: Auth Section */}
           {!loading && (
             <div className="flex items-center gap-4">
               {user ? (
@@ -134,18 +149,18 @@ export default function Header() {
         </div>
       </header>
 
-      {/* 🎉 Welcome Toast */}
+      {/* 🎉 Welcome / Goodbye Toast */}
       <AnimatePresence>
-        {showWelcome && user && (
+        {toastMessage && (
           <motion.div
+            key="toast"
             initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -30 }}
             transition={{ duration: 0.4 }}
             className="fixed top-20 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-[60]"
           >
-            Welcome back,{" "}
-            {user.user_metadata?.full_name || user.email?.split("@")[0]} 👋
+            {toastMessage}
           </motion.div>
         )}
       </AnimatePresence>
