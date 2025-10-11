@@ -1,82 +1,81 @@
-// pages/login.tsx
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
-export default function LoginPage() {
-  const router = useRouter();
+export default function Login() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
+    setError("");
 
     try {
-      const { data, error } = await supabase.auth.signInWithOtp({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/leaderboard`,
-        },
+        password,
       });
-
       if (error) throw error;
+      if (!data.user) throw new Error("Invalid credentials.");
 
-      alert("Login link sent! Please check your email inbox.");
+      alert("Login successful!");
+      router.push("/dashboard");
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to send login link.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="bg-white rounded-2xl shadow-md w-full max-w-md p-6">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          User Login
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md"
+      >
+        <h1 className="text-2xl font-bold text-center mb-4 text-gray-800">
+          Login
         </h1>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block mb-2 text-sm font-medium text-gray-600">
-              Email Address
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300"
-              placeholder="you@example.com"
-            />
-          </div>
 
-          {error && (
-            <div className="text-red-600 text-sm bg-red-50 p-2 rounded-md">
-              {error}
-            </div>
-          )}
+        {error && <p className="text-red-600 text-center">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-          >
-            {loading ? "Sending Link..." : "Send Login Link"}
-          </button>
-        </form>
+        <input
+          type="email"
+          placeholder="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full mb-3 p-2 border rounded"
+        />
 
-        <p className="text-sm text-gray-500 mt-6 text-center">
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="w-full mb-3 p-2 border rounded"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-green-600 text-white w-full p-2 rounded font-semibold hover:bg-green-700 transition"
+        >
+          {loading ? "Signing in..." : "Login"}
+        </button>
+
+        <p className="text-center mt-3 text-sm">
           Not registered yet?{" "}
-          <a href="/register" className="text-blue-600 hover:underline">
+          <a href="/register" className="text-green-700 font-semibold">
             Join the Giveaway
           </a>
         </p>
-      </div>
+      </form>
     </div>
   );
 }
