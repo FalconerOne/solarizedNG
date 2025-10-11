@@ -17,5 +17,6 @@
     "typescript": "^5.4.0",
     "@types/react": "^18.2.21",
     "framer-motion": "^11.0.0"
+    "canvas-confetti": "^1.9.3"
   }
 }
