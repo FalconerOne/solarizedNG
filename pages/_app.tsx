@@ -1,1 +1,28 @@
-import '../styles/globals.css'; import type { AppProps } from 'next/app'; export default function App({ Component, pageProps }: AppProps) { return <Component {...pageProps} /> }
+import { useEffect } from "react";
+import { restoreSession } from "../lib/sessionHelper";
+import { supabase } from "../lib/supabaseClient";
+import "../styles/globals.css";
+
+function MyApp({ Component, pageProps }: any) {
+  useEffect(() => {
+    restoreSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          localStorage.setItem("sb-session", JSON.stringify(session));
+        } else {
+          localStorage.removeItem("sb-session");
+        }
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  return <Component {...pageProps} />;
+}
+
+export default MyApp;
