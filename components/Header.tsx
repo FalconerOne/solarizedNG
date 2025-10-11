@@ -1,52 +1,40 @@
-// components/Header.tsx
 import Link from "next/link";
-import { useRouter } from "next/router";
-import { supabase } from "../lib/supabaseClient";
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Header() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
+    // Check current session and listen for changes
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) =>
+      setSession(session)
+    );
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
+  async function handleLogout() {
     await supabase.auth.signOut();
-    router.push("/");
-  };
+    window.location.href = "/";
+  }
 
   return (
-    <header className="flex justify-between items-center bg-blue-700 text-white px-6 py-4 shadow-md">
-      <Link href="/" className="text-xl font-semibold">
-        SolarizedNG GiveAway
+    <header className="p-4 bg-gray-800 text-white flex justify-between items-center">
+      <Link href="/" className="font-bold text-xl">
+        SolarizedNG Giveaway
       </Link>
 
-      <nav className="flex items-center space-x-4">
-        <Link href="/leaderboard" className="hover:underline">
-          Leaderboard
-        </Link>
-        <Link href="/register" className="hover:underline">
-          Register
-        </Link>
+      <nav className="space-x-4 flex items-center">
+        <Link href="/leaderboard">Leaderboard</Link>
+        <Link href="/register">Register</Link>
 
-        {!user ? (
-          <Link href="/login" className="hover:underline">
-            Login
-          </Link>
+        {!session ? (
+          <Link href="/login">Login</Link>
         ) : (
           <button
             onClick={handleLogout}
-            className="bg-red-500 px-3 py-1 rounded-md hover:bg-red-600"
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
           >
             Logout
           </button>
