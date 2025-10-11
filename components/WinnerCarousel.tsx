@@ -1,102 +1,91 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/utils/supabaseClient";
+import { motion } from "framer-motion";
+import confetti from "canvas-confetti";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/lib/supabaseClient";
 
-type Winner = {
+interface Winner {
   id: string;
   full_name: string;
   phone: string;
   prize: string;
   photo_url?: string;
-  created_at?: string;
-};
+  created_at: string;
+}
 
 export default function WinnerCarousel() {
   const [winners, setWinners] = useState<Winner[]>([]);
   const [index, setIndex] = useState(0);
+  const [latestId, setLatestId] = useState<string | null>(null);
 
-  // 🔹 Fetch Winners from Supabase
-  const fetchWinners = async () => {
+  // Helper function to mask phone numbers
+  const maskPhone = (phone: string) => {
+    return phone.replace(/(\d{3})\d{5}(\d{3})/, "$1*****$2");
+  };
+
+  // Fetch winners from Supabase
+  async function fetchWinners() {
     const { data, error } = await supabase
       .from("winners")
       .select("*")
-      .order("created_at", { ascending: false });
-
+      .order("created_at", { ascending: false })
+      .limit(10);
     if (!error && data) {
       setWinners(data);
-    } else {
-      console.error("Error fetching winners:", error);
+      if (data[0]?.id !== latestId) {
+        setLatestId(data[0]?.id);
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
+      }
     }
-  };
-
-  useEffect(() => {
-    fetchWinners();
-
-    // Auto-rotate every 5 seconds
-    const interval = setInterval(() => {
-      setIndex((prev) => (prev + 1) % (winners.length || 1));
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [winners.length]);
-
-  if (winners.length === 0) {
-    return (
-      <div className="bg-white/80 p-6 rounded-xl shadow text-center text-gray-600">
-        Loading winners...
-      </div>
-    );
   }
 
-  const current = winners[index];
+  // Auto-refresh every 30s
+  useEffect(() => {
+    fetchWinners();
+    const interval = setInterval(fetchWinners, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Mask phone number middle digits
-  const maskedPhone =
-    current.phone?.length >= 11
-      ? `${current.phone.slice(0, 3)}*****${current.phone.slice(-3)}`
-      : current.phone;
+  // Rotate through winners
+  useEffect(() => {
+    if (winners.length === 0) return;
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % winners.length);
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [winners]);
+
+  const winner = winners[index];
+
+  if (!winner) return null;
 
   return (
-    <div className="relative w-full max-w-lg mx-auto">
-      <h2 className="text-2xl font-bold text-orange-600 mb-4">
-        Recent Winners 🎉
-      </h2>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={current.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.6 }}
-          className="bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center text-center"
-        >
-          <div className="relative w-24 h-24 mb-4">
-            <Image
-              src={current.photo_url || "/images/default-avatar.png"}
-              alt={current.full_name}
-              fill
-              className="rounded-full object-cover border-4 border-orange-400 shadow-md"
-            />
-          </div>
-
-          <h3 className="text-xl font-semibold text-gray-800">
-            {current.full_name}
-          </h3>
-          <p className="text-gray-600 text-sm">{maskedPhone}</p>
-
-          <p className="mt-3 text-orange-600 font-medium">
-            🏆 {current.prize}
-          </p>
-
-          <p className="text-gray-400 text-xs mt-1">
-            {new Date(current.created_at || "").toLocaleDateString()}
-          </p>
-        </motion.div>
-      </AnimatePresence>
-    </div>
+    <motion.div
+      key={winner.id}
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8 }}
+      className="mt-12 max-w-md w-full bg-white/80 rounded-2xl shadow-lg p-6 text-center border border-orange-200"
+    >
+      <Image
+        src={winner.photo_url || "/images/default-avatar.png"}
+        alt={winner.full_name}
+        width={100}
+        height={100}
+        className="rounded-full mx-auto shadow-md mb-4 border-4 border-orange-300"
+      />
+      <h3 className="text-xl font-semibold text-orange-700">{winner.full_name}</h3>
+      <p className="text-gray-700 text-sm">{maskPhone(winner.phone)}</p>
+      <p className="text-lg font-medium text-green-700 mt-2">🏆 {winner.prize}</p>
+      <p className="text-xs text-gray-500 mt-1">
+        Announced: {new Date(winner.created_at).toLocaleDateString()}
+      </p>
+    </motion.div>
   );
 }
