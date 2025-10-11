@@ -8,7 +8,7 @@ export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch active user session
+  // Fetch current user session
   useEffect(() => {
     const getUser = async () => {
       const {
@@ -19,7 +19,7 @@ export default function Header() {
     };
     getUser();
 
-    // Listen for login/logout events
+    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -29,7 +29,7 @@ export default function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Handle logout
+  // Logout handler
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
@@ -39,24 +39,36 @@ export default function Header() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 shadow-md ${
+      className={`fixed top-0 left-0 right-0 z-50 shadow-sm ${
         isAdmin
           ? "bg-gray-900 text-white border-b border-gray-800"
           : "bg-white text-gray-800 border-b border-gray-200"
       }`}
     >
       <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
-        <div className="flex items-center gap-2">
+        {/* Left Side — App Title */}
+        <div className="flex items-center gap-4">
           <Link
-            href="/"
+            href={isAdmin ? "/admin" : "/"}
             className={`font-bold text-lg ${
               isAdmin ? "text-yellow-300" : "text-blue-600"
             }`}
           >
             {isAdmin ? "Admin Dashboard" : "SolarizedNG Giveaway"}
           </Link>
+
+          {/* Show leaderboard link if in admin */}
+          {isAdmin && (
+            <Link
+              href="/leaderboard"
+              className="text-sm text-yellow-300 hover:text-yellow-400 transition"
+            >
+              🏆 View Leaderboard
+            </Link>
+          )}
         </div>
 
+        {/* Right Side — Auth Buttons */}
         {!loading && (
           <div className="flex items-center gap-4">
             {user ? (
@@ -70,11 +82,11 @@ export default function Header() {
                 </span>
                 <button
                   onClick={handleLogout}
-                  className={`px-3 py-1 rounded ${
+                  className={`px-3 py-1 rounded font-medium transition ${
                     isAdmin
                       ? "bg-yellow-400 text-gray-900 hover:bg-yellow-500"
                       : "bg-blue-600 text-white hover:bg-blue-700"
-                  } transition`}
+                  }`}
                 >
                   Logout
                 </button>
