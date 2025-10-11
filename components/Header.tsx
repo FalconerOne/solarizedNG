@@ -1,78 +1,110 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Header() {
-  const [session, setSession] = useState<any>(null);
-  const [userName, setUserName] = useState<string>("");
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch active user session
   useEffect(() => {
-    // Get current session
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const getUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+      setLoading(false);
+    };
+    getUser();
 
-    // Listen for changes (login/logout)
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) =>
-      setSession(session)
-    );
+    // Listen for login/logout events
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
 
-    return () => listener.subscription.unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch user's full name
-  useEffect(() => {
-    async function fetchUser() {
-      if (session?.user) {
-        const { data } = await supabase
-          .from("users")
-          .select("full_name")
-          .eq("email", session.user.email)
-          .single();
-        if (data?.full_name) setUserName(data.full_name);
-      }
-    }
-    fetchUser();
-  }, [session]);
-
-  async function handleLogout() {
+  // Handle logout
+  const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/";
-  }
+    router.push("/");
+  };
+
+  const isAdmin = router.pathname.startsWith("/admin");
 
   return (
     <header
-      className="fixed top-0 left-0 w-full bg-gray-900 text-white shadow-lg z-50"
+      className={`fixed top-0 left-0 right-0 z-50 shadow-md ${
+        isAdmin
+          ? "bg-gray-900 text-white border-b border-gray-800"
+          : "bg-white text-gray-800 border-b border-gray-200"
+      }`}
     >
-      <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-        <Link href="/" className="font-bold text-xl hover:text-yellow-400 transition">
-          SolarizedNG Giveaway
-        </Link>
-
-        <nav className="space-x-4 flex items-center">
-          <Link href="/leaderboard" className="hover:text-yellow-400 transition">
-            Leaderboard
+      <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
+        <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            className={`font-bold text-lg ${
+              isAdmin ? "text-yellow-300" : "text-blue-600"
+            }`}
+          >
+            {isAdmin ? "Admin Dashboard" : "SolarizedNG Giveaway"}
           </Link>
-          <Link href="/register" className="hover:text-yellow-400 transition">
-            Register
-          </Link>
+        </div>
 
-          {!session ? (
-            <Link href="/login" className="hover:text-yellow-400 transition">
-              Login
-            </Link>
-          ) : (
-            <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-300">
-                👋 Hello, {userName || "Friend"}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
-              >
-                Logout
-              </button>
-            </div>
-          )}
-        </nav>
+        {!loading && (
+          <div className="flex items-center gap-4">
+            {user ? (
+              <>
+                <span className="hidden sm:inline">
+                  Hello,{" "}
+                  <strong>
+                    {user.user_metadata?.full_name ||
+                      user.email?.split("@")[0]}
+                  </strong>
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className={`px-3 py-1 rounded ${
+                    isAdmin
+                      ? "bg-yellow-400 text-gray-900 hover:bg-yellow-500"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  } transition`}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className={`${
+                    isAdmin
+                      ? "text-yellow-300 hover:text-yellow-400"
+                      : "text-blue-600 hover:text-blue-800"
+                  } font-medium`}
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  className={`${
+                    isAdmin
+                      ? "bg-yellow-400 text-gray-900"
+                      : "bg-blue-600 text-white"
+                  } px-3 py-1 rounded hover:opacity-90`}
+                >
+                  Register
+                </Link>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );
