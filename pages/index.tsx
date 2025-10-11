@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import WinnerCarousel from "@/components/WinnerCarousel";
 
 const prizes = [
   { img: "/images/prize1.jpg", title: "1kVA Inverter", drawDate: "Oct 25, 2025" },
@@ -22,11 +24,11 @@ export default function Home() {
   const prize = prizes[index];
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-green-50 to-orange-50 text-center p-6">
+    <div className="min-h-screen flex flex-col items-center justify-start bg-gradient-to-b from-green-50 to-orange-50 text-center p-6">
       
-      {/* Pulsing Heart Heroes Logo */}
+      {/* 🩵 Pulsing Heart Heroes Logo */}
       <motion.div
-        className="relative flex justify-center items-center mb-8"
+        className="relative flex justify-center items-center my-8"
         animate={{ scale: [1, 1.1, 1] }}
         transition={{ duration: 2, repeat: Infinity }}
       >
@@ -40,13 +42,39 @@ export default function Home() {
         />
       </motion.div>
 
-      {/* Carousel */}
+      {/* 🌞 Banner Section */}
+      <section className="w-full max-w-3xl bg-white/80 py-10 px-6 rounded-2xl shadow-lg mb-8">
+        <h1 className="text-4xl font-extrabold text-orange-600 mb-4">
+          SolarizedNG Charity Giveaway
+        </h1>
+        <p className="text-gray-700 max-w-2xl mx-auto mb-6">
+          Activate your chance today — Your Small Act/participation Helps Heart Heroes Support Foundation
+          Support a Sick Child with Medical Bills, Surgery Cost and Medication Access.
+        </p>
+
+        <div className="flex justify-center gap-4">
+          <Link
+            href="/register"
+            className="bg-orange-500 text-white px-6 py-3 rounded-xl shadow hover:bg-orange-600 transition"
+          >
+            Join the Giveaway
+          </Link>
+          <Link
+            href="/status"
+            className="bg-white border border-orange-400 text-orange-700 px-6 py-3 rounded-xl hover:bg-orange-50 transition"
+          >
+            Check My Status
+          </Link>
+        </div>
+      </section>
+
+      {/* 🎁 Revolving Prizes Section */}
       <motion.div
         key={prize.img}
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7 }}
-        className="max-w-md w-full bg-white/80 rounded-2xl shadow-lg p-4"
+        className="max-w-md w-full bg-white/90 rounded-2xl shadow-lg p-4 mb-10"
       >
         <Image
           src={prize.img}
@@ -59,16 +87,13 @@ export default function Home() {
         <p className="text-gray-700">Draw Date: {prize.drawDate}</p>
       </motion.div>
 
-      {/* CTA */}
-      <div className="mt-8 max-w-lg text-gray-700 leading-relaxed">
-        <p className="text-md font-medium">
-          Activate your chance today — Your Small Act/participation Helps Heart Heroes Support Foundation
-          Support a Sick Child with Medical Bills, Surgery Cost and Medication Access.
-        </p>
+      {/* 🏆 Dynamic Winners Carousel */}
+      <div className="w-full max-w-2xl mb-10">
+        <WinnerCarousel />
       </div>
 
-      {/* Footer */}
-      <footer className="mt-10 text-sm text-gray-600">
+      {/* 💖 Humanity Footer */}
+      <footer className="mt-auto text-sm text-gray-600 text-center">
         <p>
           Humanity starts with compassion...{" "}
           <a
@@ -84,3 +109,4 @@ export default function Home() {
     </div>
   );
 }
+
