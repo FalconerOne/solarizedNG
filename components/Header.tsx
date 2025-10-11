@@ -10,7 +10,7 @@ export default function Header() {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Fetch current user session on mount
+  // Fetch user session on mount
   useEffect(() => {
     const getUser = async () => {
       const {
@@ -30,7 +30,7 @@ export default function Header() {
     };
     getUser();
 
-    // Listen for auth changes
+    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -57,7 +57,7 @@ export default function Header() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Logout
+  // Logout handler
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
@@ -67,7 +67,7 @@ export default function Header() {
 
   return (
     <>
-      {/* Main Header */}
+      {/* Header */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 shadow-sm ${
           isAdmin
@@ -76,7 +76,7 @@ export default function Header() {
         }`}
       >
         <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
-          {/* Left: App Name */}
+          {/* Left Side */}
           <div className="flex items-center gap-4">
             <Link
               href={isAdmin ? "/admin" : "/"}
@@ -97,18 +97,25 @@ export default function Header() {
             )}
           </div>
 
-          {/* Right: Auth Section */}
+          {/* Right Side */}
           {!loading && (
             <div className="flex items-center gap-4">
               {user ? (
                 <>
-                  <span className="hidden sm:inline">
-                    Hello,{" "}
-                    <strong>
-                      {user.user_metadata?.full_name ||
-                        user.email?.split("@")[0]}
-                    </strong>
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {/* 🟢 Online Indicator */}
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span className="hidden sm:inline">
+                      Hello,{" "}
+                      <strong>
+                        {user.user_metadata?.full_name ||
+                          user.email?.split("@")[0]}
+                      </strong>
+                    </span>
+                  </div>
                   <button
                     onClick={handleLogout}
                     className={`px-3 py-1 rounded font-medium transition ${
@@ -122,6 +129,15 @@ export default function Header() {
                 </>
               ) : (
                 <>
+                  {/* 🔴 Offline Indicator */}
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    <span className="text-sm opacity-80 hidden sm:inline">
+                      Guest
+                    </span>
+                  </div>
                   <Link
                     href="/login"
                     className={`${
@@ -149,7 +165,7 @@ export default function Header() {
         </div>
       </header>
 
-      {/* 🎉 Welcome / Goodbye Toast */}
+      {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
