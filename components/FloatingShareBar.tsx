@@ -1,84 +1,80 @@
 "use client";
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { Share2, X } from "lucide-react";
+import { Share2, Facebook, Twitter, Instagram, Linkedin, MessageCircle, Send } from "lucide-react";
 
-export default function FloatingShareBar() {
-  const [open, setOpen] = useState(false);
-  const url = "https://solarizedng.vercel.app";
-  const message = encodeURIComponent("Win with friends, Family & Others 🎉");
-  const shareUrl = encodeURIComponent(url);
+const shareUrl = "https://solarizedng.vercel.app";
+const shareMessage = "Win with friends, family & others 🎁";
 
-  const socials = [
-    {
-      name: "Facebook",
-      color: "bg-blue-600 hover:bg-blue-700",
-      link: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`,
-    },
-    {
-      name: "X (Twitter)",
-      color: "bg-black hover:bg-gray-800",
-      link: `https://twitter.com/intent/tweet?text=${message}&url=${shareUrl}`,
-    },
-    {
-      name: "Instagram",
-      color: "bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-500 hover:opacity-90",
-      link: `https://www.instagram.com/`,
-    },
-    {
-      name: "WhatsApp",
-      color: "bg-green-500 hover:bg-green-600",
-      link: `https://api.whatsapp.com/send?text=${message}%20${shareUrl}`,
-    },
-    {
-      name: "LinkedIn",
-      color: "bg-blue-700 hover:bg-blue-800",
-      link: `https://www.linkedin.com/shareArticle?mini=true&url=${shareUrl}&title=${message}`,
-    },
-    {
-      name: "Telegram",
-      color: "bg-sky-500 hover:bg-sky-600",
-      link: `https://t.me/share/url?url=${shareUrl}&text=${message}`,
-    },
-  ];
+const FloatingShareBar = () => {
+  const handleShare = (platform: string) => {
+    const encodedMsg = encodeURIComponent(shareMessage);
+    const encodedUrl = encodeURIComponent(shareUrl);
+    let shareLink = "";
+
+    switch (platform) {
+      case "facebook":
+        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+        break;
+      case "twitter":
+        shareLink = `https://twitter.com/intent/tweet?text=${encodedMsg}&url=${encodedUrl}`;
+        break;
+      case "instagram":
+        shareLink = "https://www.instagram.com/";
+        break;
+      case "linkedin":
+        shareLink = `https://www.linkedin.com/shareArticle?mini=true&url=${encodedUrl}&title=${encodedMsg}`;
+        break;
+      case "whatsapp":
+        shareLink = `https://api.whatsapp.com/send?text=${encodedMsg}%20${encodedUrl}`;
+        break;
+      case "telegram":
+        shareLink = `https://t.me/share/url?url=${encodedUrl}&text=${encodedMsg}`;
+        break;
+    }
+
+    window.open(shareLink, "_blank");
+  };
 
   return (
-    <div className="fixed bottom-6 left-6 z-50 font-[Segoe UI]">
-      {open ? (
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-2 items-start"
-        >
-          {socials.map((s) => (
-            <a
-              key={s.name}
-              href={s.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg transition ${s.color}`}
-            >
-              {s.name}
-            </a>
-          ))}
+    <motion.div
+      className="fixed bottom-6 right-6 flex flex-col items-center gap-3 z-50"
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+    >
+      <motion.div
+        className="bg-orange-500 text-white p-4 rounded-full shadow-lg cursor-pointer hover:bg-orange-600"
+        whileHover={{ scale: 1.1 }}
+        onClick={() => {
+          const container = document.getElementById("share-icons");
+          if (container) container.classList.toggle("hidden");
+        }}
+      >
+        <Share2 size={24} />
+      </motion.div>
 
-          <button
-            onClick={() => setOpen(false)}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-3 rounded-full shadow-md mt-2"
-          >
-            <X size={18} />
-          </button>
-        </motion.div>
-      ) : (
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setOpen(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-full shadow-lg flex items-center justify-center"
-        >
-          <Share2 size={22} />
+      <div id="share-icons" className="hidden flex flex-col gap-3">
+        <motion.button whileHover={{ scale: 1.2 }} onClick={() => handleShare("facebook")} className="bg-blue-600 text-white p-3 rounded-full shadow-md">
+          <Facebook size={20} />
         </motion.button>
-      )}
-    </div>
+        <motion.button whileHover={{ scale: 1.2 }} onClick={() => handleShare("twitter")} className="bg-black text-white p-3 rounded-full shadow-md">
+          <Twitter size={20} />
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.2 }} onClick={() => handleShare("instagram")} className="bg-pink-500 text-white p-3 rounded-full shadow-md">
+          <Instagram size={20} />
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.2 }} onClick={() => handleShare("linkedin")} className="bg-blue-700 text-white p-3 rounded-full shadow-md">
+          <Linkedin size={20} />
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.2 }} onClick={() => handleShare("whatsapp")} className="bg-green-500 text-white p-3 rounded-full shadow-md">
+          <MessageCircle size={20} />
+        </motion.button>
+        <motion.button whileHover={{ scale: 1.2 }} onClick={() => handleShare("telegram")} className="bg-sky-500 text-white p-3 rounded-full shadow-md">
+          <Send size={20} />
+        </motion.button>
+      </div>
+    </motion.div>
   );
-}
+};
+
+export default FloatingShareBar;
