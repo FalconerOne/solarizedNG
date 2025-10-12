@@ -1,1 +1,21 @@
-{ "short_name": "Giveaway", "name": "SolarizedNG GiveAway", "icons":[ { "src": "/icons/icon-192.png", "type":"image/png", "sizes":"192x192" }, { "src": "/icons/icon-512.png", "type":"image/png", "sizes":"512x512" } ], "start_url": "/", "background_color":"#ffffff", "theme_color":"#009640", "display":"standalone" }
+{
+  "name": "SolarizedNG Giveaway",
+  "short_name": "SolarizedNG",
+  "description": "Win, Share, Support & Impact with SolarizedNG Charity Giveaway.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
