@@ -13,15 +13,13 @@ export default function Document() {
         <link rel="apple-touch-icon" href="/icons/icon-512x512.png" />
         <link rel="mask-icon" href="/icons/maskable_icon.png" color="#f97316" />
 
-        {/* ✅ Theme & SEO */}
+        {/* ✅ Mobile / PWA Optimization */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
         <meta name="theme-color" content="#f97316" />
         <meta name="background-color" content="#ffffff" />
-        <meta
-          name="description"
-          content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway."
-        />
-
-        {/* ✅ Apple & Mobile App Settings */}
         <meta name="application-name" content="SolarizedNG" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
@@ -30,12 +28,19 @@ export default function Document() {
         />
         <meta name="apple-mobile-web-app-title" content="SolarizedNG" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="display" content="standalone" />
 
-        {/* ✅ Enhanced SEO + Social Previews */}
+        {/* ✅ SEO */}
+        <meta
+          name="description"
+          content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway."
+        />
         <meta
           name="keywords"
           content="SolarizedNG, charity giveaway, Nigeria, solar energy, win solar, social impact"
         />
+
+        {/* ✅ Social Preview */}
         <meta property="og:type" content="website" />
         <meta property="og:title" content="SolarizedNG Giveaway" />
         <meta
@@ -52,6 +57,17 @@ export default function Document() {
           content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway."
         />
         <meta name="twitter:image" content="/icons/icon-512x512.png" />
+
+        {/* ✅ Startup / Splash screen fallback */}
+        <link
+          rel="apple-touch-startup-image"
+          href="/icons/icon-512x512.png"
+          media="(device-width: 390px)"
+        />
+
+        {/* ✅ Preconnect hints for performance */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       </Head>
 
       <body>
