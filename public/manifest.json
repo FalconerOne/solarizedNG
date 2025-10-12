@@ -1,9 +1,10 @@
 {
-  "name": "SolarizedNG Giveaway",
+  "name": "SolarizedNG",
   "short_name": "SolarizedNG",
-  "description": "Win, Share, Support & Impact with SolarizedNG Charity Giveaway.",
+  "description": "Empowering communities through sustainable solar solutions.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#f97316",
   "icons": [
@@ -16,6 +17,12 @@
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/icons/maskable_icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
