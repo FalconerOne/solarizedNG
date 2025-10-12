@@ -25,7 +25,7 @@ export default function Home() {
   const prize = prizes[index];
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start bg-gradient-to-b from-green-50 to-orange-50 text-center p-6">
+    <div className="min-h-screen flex flex-col items-center justify-start bg-gradient-to-b from-green-50 to-orange-50 text-center p-6 font-segoe">
       
       {/* 🩵 Pulsing Heart Heroes Logo */}
       <motion.div
@@ -45,70 +45,22 @@ export default function Home() {
 
       {/* 🌞 Banner Section */}
       <section className="w-full max-w-3xl bg-white/80 py-10 px-6 rounded-2xl shadow-lg mb-8">
-        <h1 className="text-4xl font-extrabold text-orange-600 mb-4">
+        <h1 className="text-4xl font-extrabold text-orange-brand mb-4">
           SolarizedNG Charity Giveaway
         </h1>
-        <p className="text-gray-700 max-w-2xl mx-auto mb-6">
-          Activate Your Chance NOW! — Win, Share, Support & Impact. Keep the Fun Rolling!!
+        <p className="text-gray-700 max-w-2xl mx-auto mb-6 leading-relaxed">
+          Activate Your Chance NOW! — Win, Share, Support & Impact. 
+          Keep the Fun Rolling and Help Heart Heroes Foundation Support More Kids!
         </p>
 
-        <div className="flex justify-center gap-4">
+        {/* 🌟 Upgraded Buttons */}
+        <div className="flex justify-center gap-4 font-segoe">
           <Link
             href="/register"
-            className="bg-orange-500 text-white px-6 py-3 rounded-xl shadow hover:bg-orange-600 transition"
+            className="bg-orange-brand text-white px-8 py-3 rounded-xl shadow-glow hover:bg-orange-brand-light transition-all duration-300 hover:scale-105"
           >
-            Join the Giveaway
+            🎉 Join the Giveaway
           </Link>
           <Link
             href="/status"
-            className="bg-white border border-orange-400 text-orange-700 px-6 py-3 rounded-xl hover:bg-orange-50 transition"
-          >
-            Check My Status
-          </Link>
-        </div>
-      </section>
-
-      {/* 🎁 Revolving Prizes Section */}
-      <motion.div
-        key={prize.img}
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7 }}
-        className="max-w-md w-full bg-white/90 rounded-2xl shadow-lg p-4 mb-10"
-      >
-        <Image
-          src={prize.img}
-          alt={prize.title}
-          width={500}
-          height={300}
-          className="rounded-xl shadow-md mb-4"
-        />
-        <h2 className="text-2xl font-semibold text-orange-600">{prize.title}</h2>
-        <p className="text-gray-700">Draw Date: {prize.drawDate}</p>
-      </motion.div>
-
-      {/* 🏆 Dynamic Winners Carousel */}
-      <div className="w-full max-w-2xl mb-10">
-        <WinnerCarousel />
-      </div>
-
-      {/* 💖 Humanity Footer */}
-      <footer className="mt-auto text-sm text-gray-600 text-center">
-        <p>
-          Love Helping Kids?.. Humanity Starts With Compassion...{" "}
-          <a
-            href="https://heartheroes.org.ng/campaigns"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-orange-600 font-semibold underline"
-          >
-            Make an Impact
-          </a>
-        </p>
-      </footer>
-
-      <FloatingShareBar />
-    </div>
-  );
-}
-
+            className="
