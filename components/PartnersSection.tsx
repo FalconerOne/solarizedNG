@@ -43,9 +43,9 @@ export default function PartnersSection() {
                 key={p.name + i}
                 whileHover={{ scale: 1.05, opacity: 1 }}
                 className="flex flex-col items-center justify-center p-2 flex-shrink-0"
-                style={{ width: "120px" }}
+                style={{ width: "100px" }}
               >
-                <div className="relative w-[100px] h-[60px] rounded-md overflow-hidden bg-white/90 border border-gray-100 flex items-center justify-center shadow-sm">
+                <div className="relative w-[90px] h-[50px] rounded-md overflow-hidden bg-white/90 border border-gray-100 flex items-center justify-center shadow-sm">
                   <Image
                     src={p.logo}
                     alt={p.name}
