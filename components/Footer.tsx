@@ -6,15 +6,15 @@ import { socialLinks } from "@/config/socials";
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-gradient-to-b from-white to-orange-50 py-8 border-t border-orange-100 text-center">
+    <footer className="w-full bg-gradient-to-b from-white via-orange-50/50 to-orange-100/40 py-10 border-t border-orange-100 text-center">
       <motion.div
-        className="max-w-5xl mx-auto px-4"
+        className="max-w-5xl mx-auto px-6"
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
         {/* 💬 Tagline */}
-        <p className="text-gray-700 mb-4">
+        <p className="text-gray-700 text-base md:text-lg mb-5">
           Love Helping Kids?{" "}
           <span className="text-orange-600 font-semibold">
             Humanity starts with compassion.
@@ -22,27 +22,32 @@ export default function Footer() {
         </p>
 
         {/* 🌐 Social Icons */}
-        <div className="flex justify-center gap-5 mb-4 text-orange-600">
+        <div className="flex justify-center gap-6 mb-6 text-orange-600">
           {socialLinks.map(({ name, icon, url }) => {
             const Icon = (Icons as any)[icon];
             return (
-              <a
+              <motion.a
                 key={name}
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:scale-110 transition"
+                className="p-2 rounded-full bg-white shadow-md hover:shadow-lg hover:bg-orange-100 text-orange-600 transition-all"
                 aria-label={name}
+                whileHover={{ scale: 1.2 }}
+                whileTap={{ scale: 0.9 }}
               >
                 <Icon size={20} />
-              </a>
+              </motion.a>
             );
           })}
         </div>
 
+        {/* 🔸 Divider Line */}
+        <div className="w-24 h-[2px] bg-orange-400/70 mx-auto mb-4 rounded-full" />
+
         {/* 🧡 Footer Note */}
         <p className="text-sm text-gray-600">
-          © {new Date().getFullYear()} SolarizedNG • Built with 💖 to empower and uplift lives.
+          © {new Date().getFullYear()} <span className="font-semibold text-orange-700">SolarizedNG</span> • Built with 💖 to empower and uplift lives.
         </p>
       </motion.div>
     </footer>
