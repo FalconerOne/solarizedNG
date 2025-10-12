@@ -1,36 +1,45 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowUp } from "lucide-react";
 
 export default function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsVisible(window.scrollY > 400);
+    const toggleVisibility = () => {
+      if (window.scrollY > 400) {
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+      }
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    window.addEventListener("scroll", toggleVisibility);
+    return () => window.removeEventListener("scroll", toggleVisibility);
   }, []);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   return (
-    <button
-      onClick={scrollToTop}
-      aria-label="Scroll to top"
-      className={`fixed z-40 rounded-full bg-orange-500 text-white shadow-lg transition-all duration-300 flex items-center justify-center 
-        ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5 pointer-events-none"} 
-        hover:bg-orange-600 active:scale-95
-        right-6 md:right-8
-        bottom-24 sm:bottom-28  /* 👈 pushes it above the share bar */
-        w-10 h-10 sm:w-12 sm:h-12
-        font-[Segoe_UI]
-      `}
+    <div
+      className={`fixed bottom-24 right-6 z-50 transition-all duration-700 ease-in-out ${
+        isVisible
+          ? "opacity-100 translate-y-0"
+          : "opacity-0 translate-y-10 pointer-events-none"
+      }`}
     >
-      <ArrowUp size={22} />
-    </button>
+      <button
+        onClick={scrollToTop}
+        className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition-all duration-300 animate-[pulse_12s_ease-in-out_infinite]"
+        aria-label="Scroll to top"
+      >
+        <ArrowUp className="w-6 h-6" />
+      </button>
+    </div>
   );
 }
