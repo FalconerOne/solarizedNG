@@ -6,48 +6,57 @@ import { socialLinks } from "@/config/socials";
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-gradient-to-b from-white via-orange-50/50 to-orange-100/40 py-10 border-t border-orange-100 text-center">
+    <footer className="w-full bg-gradient-to-b from-white to-orange-50 py-8 border-t border-orange-100 text-center">
       <motion.div
-        className="max-w-5xl mx-auto px-6"
+        className="max-w-5xl mx-auto px-4"
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
         {/* 💬 Tagline */}
-        <p className="text-gray-700 text-base md:text-lg mb-5">
+        <p className="text-gray-700 mb-4">
           Love Helping Kids?{" "}
           <span className="text-orange-600 font-semibold">
             Humanity starts with compassion.
           </span>
         </p>
 
-        {/* 🌐 Social Icons */}
-        <div className="flex justify-center gap-6 mb-6 text-orange-600">
-          {socialLinks.map(({ name, icon, url }) => {
+        {/* 🌐 Social Icons with Brand Hover */}
+        <div className="flex justify-center gap-5 mb-4">
+          {socialLinks.map(({ name, icon, url, hoverColor }) => {
             const Icon = (Icons as any)[icon];
             return (
-              <motion.a
+              <a
                 key={name}
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 rounded-full bg-white shadow-md hover:shadow-lg hover:bg-orange-100 text-orange-600 transition-all"
                 aria-label={name}
-                whileHover={{ scale: 1.2 }}
-                whileTap={{ scale: 0.9 }}
+                className="text-orange-600 transition-transform transform hover:scale-110"
+                style={{
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = hoverColor;
+                  (e.currentTarget as HTMLElement).style.filter =
+                    `drop-shadow(0 0 6px ${hoverColor})`;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#EA580C"; // Tailwind orange-600
+                  (e.currentTarget as HTMLElement).style.filter = "none";
+                }}
               >
-                <Icon size={20} />
-              </motion.a>
+                <Icon size={22} />
+              </a>
             );
           })}
         </div>
 
-        {/* 🔸 Divider Line */}
-        <div className="w-24 h-[2px] bg-orange-400/70 mx-auto mb-4 rounded-full" />
-
         {/* 🧡 Footer Note */}
         <p className="text-sm text-gray-600">
-          © {new Date().getFullYear()} <span className="font-semibold text-orange-700">SolarizedNG</span> • Built with 💖 to empower and uplift lives.
+          © {new Date().getFullYear()}{" "}
+          <span className="text-orange-600 font-semibold">SolarizedNG</span> •
+          Built with 💖 to empower and uplift lives.
         </p>
       </motion.div>
     </footer>
