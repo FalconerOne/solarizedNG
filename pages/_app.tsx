@@ -8,15 +8,23 @@ import FloatingShareBar from "@/components/FloatingShareBar";
 import ScrollToTop from "@/components/ScrollToTop";
 
 export default function App({ Component, pageProps }: AppProps) {
-  // ✅ Register Service Worker once when app loads
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/service-worker.js")
-          .then(() => console.log("✅ Service Worker registered"))
-          .catch((err) => console.error("❌ SW registration failed:", err));
-      });
+    // ✅ Ensure window & navigator exist (avoid SSR crash)
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const registerServiceWorker = async () => {
+        try {
+          await navigator.serviceWorker.register("/service-worker.js");
+          console.log("✅ Service Worker registered successfully");
+        } catch (error) {
+          console.error("❌ Service Worker registration failed:", error);
+        }
+      };
+
+      // Run registration only after full page load
+      window.addEventListener("load", registerServiceWorker);
+
+      // Cleanup listener when component unmounts
+      return () => window.removeEventListener("load", registerServiceWorker);
     }
   }, []);
 
