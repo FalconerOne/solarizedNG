@@ -43,7 +43,6 @@ export default function Document() {
 <meta name="twitter:title" content="SolarizedNG Giveaway" />
 <meta name="twitter:description" content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway." />
 <meta name="twitter:image" content="/icons/icon-512x512.png" />
-
       </Head>
 
       <body>
