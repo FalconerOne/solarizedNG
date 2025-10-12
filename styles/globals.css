@@ -1,7 +1,7 @@
-/* ✅ Import Segoe UI from Google Fonts */
+/* ✅ Import Segoe UI font */
 @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap');
 
-/* ✅ Tailwind core setup (must remain AFTER imports) */
+/* ✅ Tailwind directives (must come AFTER imports) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -18,6 +18,20 @@ body,
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   color: #333;
   scroll-behavior: smooth;
+  opacity: 0;
+  animation: fadeIn 1.5s ease-in-out forwards;
+}
+
+/* 🌅 Smooth Fade-in on Page Load */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 🌟 Floating Share Button: Gentle 10-second Pulse */
@@ -32,7 +46,7 @@ body,
   }
 }
 
-/* ✨ Floating Share Button Hover Effect */
+/* ✨ Floating Share Button Styles */
 .floating-share-btn {
   transition: all 0.3s ease-in-out;
   animation: pulse 10s infinite ease-in-out;
@@ -43,7 +57,7 @@ body,
   filter: drop-shadow(0 0 12px rgba(255, 102, 0, 0.45));
 }
 
-/* 💫 Smooth fade-out animation for confetti or transitions (optional future use) */
+/* 💫 Optional fadeOut animation for modals, banners, or confetti */
 @keyframes fadeOut {
   from {
     opacity: 1;
