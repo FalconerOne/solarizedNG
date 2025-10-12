@@ -1,92 +1,84 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Facebook,
-  Twitter,
-  Linkedin,
-  Send,
-  MessageCircle,
-  Copy,
-} from "lucide-react";
+import { Share2, X } from "lucide-react";
 
 export default function FloatingShareBar() {
-  const [shareUrl, setShareUrl] = useState("");
+  const [open, setOpen] = useState(false);
+  const url = "https://solarizedng.vercel.app";
+  const message = encodeURIComponent("Win with friends, Family & Others 🎉");
+  const shareUrl = encodeURIComponent(url);
 
-  useEffect(() => {
-    setShareUrl(window.location.href);
-  }, []);
-
-  const encodedUrl = encodeURIComponent(shareUrl);
-  const message = encodeURIComponent("🎉 Check out this giveaway!");
-
-  const shareLinks = [
-    {
-      name: "WhatsApp",
-      icon: MessageCircle,
-      color: "bg-green-500 hover:bg-green-600",
-      url: `https://wa.me/?text=${message}%20${encodedUrl}`,
-    },
+  const socials = [
     {
       name: "Facebook",
-      icon: Facebook,
       color: "bg-blue-600 hover:bg-blue-700",
-      url: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      link: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`,
     },
     {
-      name: "X",
-      icon: Twitter,
-      color: "bg-gray-900 hover:bg-gray-800",
-      url: `https://x.com/intent/tweet?text=${message}%20${encodedUrl}`,
+      name: "X (Twitter)",
+      color: "bg-black hover:bg-gray-800",
+      link: `https://twitter.com/intent/tweet?text=${message}&url=${shareUrl}`,
+    },
+    {
+      name: "Instagram",
+      color: "bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-500 hover:opacity-90",
+      link: `https://www.instagram.com/`,
+    },
+    {
+      name: "WhatsApp",
+      color: "bg-green-500 hover:bg-green-600",
+      link: `https://api.whatsapp.com/send?text=${message}%20${shareUrl}`,
     },
     {
       name: "LinkedIn",
-      icon: Linkedin,
       color: "bg-blue-700 hover:bg-blue-800",
-      url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+      link: `https://www.linkedin.com/shareArticle?mini=true&url=${shareUrl}&title=${message}`,
     },
     {
       name: "Telegram",
-      icon: Send,
       color: "bg-sky-500 hover:bg-sky-600",
-      url: `https://t.me/share/url?url=${encodedUrl}&text=${message}`,
+      link: `https://t.me/share/url?url=${shareUrl}&text=${message}`,
     },
   ];
 
   return (
-    <motion.div
-      className="fixed bottom-5 left-5 flex flex-col gap-3 z-50"
-      initial={{ opacity: 0, x: -30 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.6 }}
-    >
-      {shareLinks.map((link) => {
-        const Icon = link.icon;
-        return (
-          <motion.a
-            key={link.name}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            className={`p-3 rounded-full shadow-md text-white transition ${link.color}`}
-            title={`Share on ${link.name}`}
+    <div className="fixed bottom-6 left-6 z-50 font-[Segoe UI]">
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-2 items-start"
+        >
+          {socials.map((s) => (
+            <a
+              key={s.name}
+              href={s.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg transition ${s.color}`}
+            >
+              {s.name}
+            </a>
+          ))}
+
+          <button
+            onClick={() => setOpen(false)}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-3 rounded-full shadow-md mt-2"
           >
-            <Icon className="w-5 h-5" />
-          </motion.a>
-        );
-      })}
-      <motion.button
-        onClick={() => navigator.clipboard.writeText(shareUrl)}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        className="p-3 rounded-full shadow-md bg-gray-500 hover:bg-gray-600 text-white transition"
-        title="Copy link"
-      >
-        <Copy className="w-5 h-5" />
-      </motion.button>
-    </motion.div>
+            <X size={18} />
+          </button>
+        </motion.div>
+      ) : (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setOpen(true)}
+          className="bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-full shadow-lg flex items-center justify-center"
+        >
+          <Share2 size={22} />
+        </motion.button>
+      )}
+    </div>
   );
 }
