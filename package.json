@@ -31,3 +31,8 @@
     "@types/canvas-confetti": "^1.6.4"
   }
 }
+{
+  "scripts": {
+    "postbuild": "next-sitemap"
+  }
+}
