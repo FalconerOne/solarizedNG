@@ -28,21 +28,30 @@ export default function Document() {
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"
         />
-        
         <meta name="apple-mobile-web-app-title" content="SolarizedNG" />
         <meta name="mobile-web-app-capable" content="yes" />
+
         {/* ✅ Enhanced SEO + Social Previews */}
-<meta name="keywords" content="SolarizedNG, charity giveaway, Nigeria, solar energy, win solar, social impact" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="SolarizedNG Giveaway" />
-<meta property="og:description" content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway." />
-<meta property="og:image" content="/icons/icon-512x512.png" />
-<meta property="og:url" content="https://solarizedng.vercel.app" />
-<meta property="og:site_name" content="SolarizedNG" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="SolarizedNG Giveaway" />
-<meta name="twitter:description" content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway." />
-<meta name="twitter:image" content="/icons/icon-512x512.png" />
+        <meta
+          name="keywords"
+          content="SolarizedNG, charity giveaway, Nigeria, solar energy, win solar, social impact"
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="SolarizedNG Giveaway" />
+        <meta
+          property="og:description"
+          content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway."
+        />
+        <meta property="og:image" content="/icons/icon-512x512.png" />
+        <meta property="og:url" content="https://solarizedng.vercel.app" />
+        <meta property="og:site_name" content="SolarizedNG" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="SolarizedNG Giveaway" />
+        <meta
+          name="twitter:description"
+          content="Win, Share, Support & Impact with SolarizedNG Charity Giveaway."
+        />
+        <meta name="twitter:image" content="/icons/icon-512x512.png" />
       </Head>
 
       <body>
