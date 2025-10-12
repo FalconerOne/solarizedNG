@@ -8,33 +8,26 @@ import FloatingShareBar from "@/components/FloatingShareBar";
 import ScrollToTop from "@/components/ScrollToTop";
 
 export default function App({ Component, pageProps }: AppProps) {
+  // ✅ Register the Service Worker once when app loads
   useEffect(() => {
-    // ✅ Ensure window & navigator exist (avoid SSR crash)
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      const registerServiceWorker = async () => {
-        try {
-          await navigator.serviceWorker.register("/service-worker.js");
-          console.log("✅ Service Worker registered successfully");
-        } catch (error) {
-          console.error("❌ Service Worker registration failed:", error);
-        }
-      };
-
-      // Run registration only after full page load
-      window.addEventListener("load", registerServiceWorker);
-
-      // Cleanup listener when component unmounts
-      return () => window.removeEventListener("load", registerServiceWorker);
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/service-worker.js")
+          .then(() => console.log("✅ Service Worker registered successfully"))
+          .catch((err) => console.error("❌ Service Worker registration failed:", err));
+      });
     }
   }, []);
 
   return (
-    <main className="min-h-screen flex flex-col bg-gray-50">
+    <main className="min-h-screen flex flex-col bg-gray-50 font-[Segoe_UI]">
       <Header />
       <div className="flex-grow">
         <Component {...pageProps} />
       </div>
       <Footer />
+      {/* Floating share bar (gentle pulse) */}
       <div className="animate-[pulse_10s_ease-in-out_infinite]">
         <FloatingShareBar />
       </div>
