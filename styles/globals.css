@@ -11,3 +11,22 @@ html, body, #__next {
   background: linear-gradient(180deg, #fff7ed, #fff);
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
+
+/* 🌟 Gentle 10-second pulse animation for FloatingShareBar */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 102, 0, 0));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 10px rgba(255, 102, 0, 0.35));
+  }
+}
+
+/* ✨ Floating Share Bar Hover Effect */
+.floating-share-btn:hover {
+  transform: translateY(-4px) scale(1.07);
+  filter: drop-shadow(0 0 12px rgba(255, 102, 0, 0.45));
+  transition: all 0.3s ease-in-out;
+}
