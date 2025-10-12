@@ -1,69 +1,36 @@
-// pages/_app.tsx
+// /pages/_app.tsx
+import { useEffect } from "react";
 import type { AppProps } from "next/app";
-import { DefaultSeo } from "next-seo";            // ✅ Added for global SEO
-import { SEO } from "@/next-seo.config";          // ✅ SEO configuration file
-import Footer from "@/components/Footer";
+import "@/styles/globals.css";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import FloatingShareBar from "@/components/FloatingShareBar";
 import ScrollToTop from "@/components/ScrollToTop";
-import "@/styles/globals.css";
 
 export default function App({ Component, pageProps }: AppProps) {
+  // ✅ Register Service Worker once when app loads
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/service-worker.js")
+          .then(() => console.log("✅ Service Worker registered"))
+          .catch((err) => console.error("❌ SW registration failed:", err));
+      });
+    }
+  }, []);
+
   return (
-    <main className="min-h-screen flex flex-col bg-gray-50 font-[Segoe_UI]">
-      {/* ✅ Global SEO Configuration */}
-      <DefaultSeo {...SEO} />
-
-      {/* 🔝 Header */}
+    <main className="min-h-screen flex flex-col bg-gray-50">
       <Header />
-
-      {/* 🧩 Page Content */}
       <div className="flex-grow">
         <Component {...pageProps} />
       </div>
-
-      {/* 🔻 Footer */}
       <Footer />
-
-      {/* 🟠 Floating share bar with soft pulse animation */}
       <div className="animate-[pulse_10s_ease-in-out_infinite]">
         <FloatingShareBar />
       </div>
-
-      {/* 🔼 Scroll-to-top button */}
       <ScrollToTop />
-
-      {/* 📊 Google Analytics placeholder (optional, fill your ID later) */}
-      <script
-        async
-        src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
-      />
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-XXXXXXXXXX');
-          `,
-        }}
-      />
-      {/* Google Analytics */}
-<script
-  async
-  src="https://www.googletagmanager.com/gtag/js?id=G-497701426"
-/>
-<script
-  dangerouslySetInnerHTML={{
-    __html: `
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-XXXXXXXXXX');
-    `,
-  }}
-/>
-
     </main>
   );
 }
