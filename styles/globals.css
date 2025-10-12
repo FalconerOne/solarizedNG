@@ -1,9 +1,9 @@
 /* 🌎 Global Styles for SolarizedNG */
 
-/* ✅ Import Segoe UI font (placed above Tailwind) */
+/* ✅ Import Segoe UI font (with fallback safety) */
 @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap');
 
-/* ✅ Tailwind Directives — must stay at the top of the file */
+/* ✅ Tailwind Directives — must stay near the top */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,7 +17,7 @@ body,
   margin: 0;
   padding: 0;
   background: linear-gradient(180deg, #fff7ed, #fff);
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Segoe UI', 'Helvetica Neue', 'Roboto', 'Ubuntu', 'Noto Sans', Arial, sans-serif;
   color: #333;
   scroll-behavior: smooth;
   opacity: 0;
@@ -67,4 +67,20 @@ body,
   to {
     opacity: 0;
   }
+}
+
+/* 🧡 Accent Hover Glow for Buttons, Links & Icons */
+button:hover,
+a:hover,
+svg:hover {
+  color: #ff6600 !important;
+  filter: drop-shadow(0 0 6px rgba(255, 102, 0, 0.4));
+  transition: all 0.25s ease-in-out;
+}
+
+/* 🪄 Focus outline for accessibility (keyboard users) */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #ff6600;
+  outline-offset: 3px;
 }
