@@ -1,1 +1,13 @@
-@tailwind base; @tailwind components; @tailwind utilities; html,body,#__next { height:100%; background: linear-gradient(180deg,#fff7ed,#fff); } body{ font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap');
+
+/* ✅ Tailwind directives must come AFTER imports */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ✅ Global layout & typography */
+html, body, #__next {
+  height: 100%;
+  background: linear-gradient(180deg, #fff7ed, #fff);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
