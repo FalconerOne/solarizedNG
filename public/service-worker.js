@@ -1,59 +1,68 @@
-// /public/service-worker.js
-
 const CACHE_NAME = "solarizedng-cache-v1";
-
-// ✅ Add all core assets you want available offline
 const ASSETS_TO_CACHE = [
   "/",
-  "/manifest.json",
   "/favicon.ico",
+  "/manifest.json",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
-  "/icons/maskable_icon.png",
+  "/icons/maskable_icon.png"
 ];
 
-// 🔹 Install: cache app shell
+// ✅ Install: Precache essential assets
 self.addEventListener("install", (event) => {
-  console.log("📦 Service Worker installing...");
+  console.log("📦 Installing service worker and caching assets...");
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log("✅ Caching app shell & assets");
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
   self.skipWaiting();
 });
 
-// 🔹 Activate: clear old caches
+// ✅ Activate: Clean up old caches when updated
 self.addEventListener("activate", (event) => {
-  console.log("♻️ Activating new Service Worker...");
+  console.log("🔁 Activating new service worker...");
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => {
-            console.log("🗑️ Removing old cache:", key);
-            return caches.delete(key);
-          })
-      )
+      Promise.all(keys.map((key) => key !== CACHE_NAME && caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
-// 🔹 Fetch: network-first, fallback to cache
+// ✅ Fetch: Serve cached assets when offline
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone & cache fetched files
-        const clonedResponse = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, clonedResponse);
-        });
-        return response;
-      })
-      .catch(() => caches.match(event.request)) // fallback to cache
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(event.request)
+        .then((response) => {
+          // Optionally cache new resources dynamically
+          if (
+            response &&
+            response.status === 200 &&
+            response.type === "basic"
+          ) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) =>
+              cache.put(event.request, responseClone)
+            );
+          }
+          return response;
+        })
+        .catch(() => caches.match("/")); // fallback to homepage when offline
+    })
   );
+});
+
+// ✅ Notify clients (tabs) when new SW version is available
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
+self.addEventListener("controllerchange", () => {
+  console.log("⚡ New service worker activated — refreshing clients...");
 });
