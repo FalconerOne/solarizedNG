@@ -12,7 +12,7 @@ export default function UpdatePrompt() {
         setUpdateAvailable(true);
         setVisible(true);
 
-        // Auto-hide after 10 seconds (optional)
+        // Auto-hide after 10 seconds
         setTimeout(() => setVisible(false), 10000);
       });
     }
@@ -22,8 +22,9 @@ export default function UpdatePrompt() {
 
   return (
     <div
-      className="fixed bottom-5 right-5 bg-orange-500 text-white px-4 py-3 rounded-2xl shadow-lg z-50 
-                 transition-all duration-700 ease-in-out transform animate-fadeSlideIn"
+      className="fixed top-6 left-1/2 -translate-x-1/2 bg-orange-500 text-white 
+                 px-5 py-3 rounded-2xl shadow-lg z-50 text-center 
+                 transition-all duration-700 ease-in-out transform animate-fadeSlideDown"
     >
       <p className="text-sm font-medium">🚀 New version available!</p>
       <button
