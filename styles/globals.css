@@ -1,18 +1,26 @@
+/* ✅ Import Segoe UI from Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap');
 
-/* ✅ Tailwind directives must come AFTER imports */
+/* ✅ Tailwind core setup (must remain AFTER imports) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ✅ Global layout & typography */
-html, body, #__next {
+/* 🌍 Global Layout & Typography */
+html,
+body,
+#__next {
   height: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
   background: linear-gradient(180deg, #fff7ed, #fff);
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  color: #333;
+  scroll-behavior: smooth;
 }
 
-/* 🌟 Gentle 10-second pulse animation for FloatingShareBar */
+/* 🌟 Floating Share Button: Gentle 10-second Pulse */
 @keyframes pulse {
   0%, 100% {
     transform: scale(1);
@@ -24,9 +32,23 @@ html, body, #__next {
   }
 }
 
-/* ✨ Floating Share Bar Hover Effect */
+/* ✨ Floating Share Button Hover Effect */
+.floating-share-btn {
+  transition: all 0.3s ease-in-out;
+  animation: pulse 10s infinite ease-in-out;
+}
+
 .floating-share-btn:hover {
   transform: translateY(-4px) scale(1.07);
   filter: drop-shadow(0 0 12px rgba(255, 102, 0, 0.45));
-  transition: all 0.3s ease-in-out;
+}
+
+/* 💫 Smooth fade-out animation for confetti or transitions (optional future use) */
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
