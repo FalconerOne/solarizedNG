@@ -49,8 +49,7 @@ export default function Home() {
           SolarizedNG Charity Giveaway
         </h1>
         <p className="text-gray-700 max-w-2xl mx-auto mb-6">
-          Activate your chance today — Your Small Act/participation Helps Heart Heroes Support Foundation
-          Support a Sick Child with Medical Bills, Surgery Cost and Medication Access.
+          Activate Your Chance NOW! — Win, Share, Support & Impact. Keep the Fun Rolling!!
         </p>
 
         <div className="flex justify-center gap-4">
@@ -96,9 +95,9 @@ export default function Home() {
       {/* 💖 Humanity Footer */}
       <footer className="mt-auto text-sm text-gray-600 text-center">
         <p>
-          Humanity starts with compassion...{" "}
+          Love Helping Kids?.. Humanity Starts With Compassion...{" "}
           <a
-            href="https://heatheroes.org.ng/campaigns"
+            href="https://heartheroes.org.ng/campaigns"
             target="_blank"
             rel="noopener noreferrer"
             className="text-orange-600 font-semibold underline"
@@ -107,6 +106,8 @@ export default function Home() {
           </a>
         </p>
       </footer>
+
+      <FloatingShareBar />
     </div>
   );
 }
