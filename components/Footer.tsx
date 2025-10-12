@@ -1,78 +1,46 @@
-// components/Footer.tsx
-import Image from "next/image";
-import Link from "next/link";
+"use client";
+
 import { motion } from "framer-motion";
+import { FaFacebookF, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegramPlane } from "react-icons/fa";
 
 export default function Footer() {
   return (
-    <footer className="relative overflow-hidden mt-12 py-8 text-center border-t border-gray-200 bg-gradient-to-t from-pink-50 via-white to-white">
-      {/* Floating hearts background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(8)].map((_, i) => (
-          <motion.span
-            key={i}
-            className="absolute text-pink-300"
-            style={{
-              left: `${Math.random() * 100}%`,
-              bottom: `-${Math.random() * 20}px`,
-              fontSize: `${Math.random() * 14 + 10}px`,
-            }}
-            initial={{ opacity: 0, y: 0 }}
-            animate={{
-              opacity: [0, 1, 0],
-              y: [-10, -120],
-              transition: {
-                duration: Math.random() * 6 + 5,
-                repeat: Infinity,
-                delay: Math.random() * 4,
-                ease: "easeInOut",
-              },
-            }}
-          >
-            ❤️
-          </motion.span>
-        ))}
-      </div>
-
-      {/* Main footer content */}
-      <div className="relative flex flex-col items-center justify-center space-y-2 px-4 z-10">
-        {/* CTA Section */}
-        <p className="text-sm text-gray-700 max-w-md leading-relaxed">
-          <strong>Activate your chance today —</strong> Your small act of participation helps{" "}
-          <span className="font-semibold text-pink-600">
-            Heart Heroes Support Foundation
-          </span>{" "}
-          support a sick child with medical bills, surgery costs, and medication access.
+    <footer className="w-full bg-gradient-to-b from-white to-orange-50 py-8 border-t border-orange-100 text-center">
+      <motion.div
+        className="max-w-5xl mx-auto px-4"
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+      >
+        {/* 💬 Tagline */}
+        <p className="text-gray-700 mb-4">
+          Love Helping Kids? <span className="text-orange-600 font-semibold">Humanity starts with compassion.</span>
         </p>
 
-        {/* Humanity tagline + clickable logo */}
-        <div className="flex items-center justify-center space-x-2 mt-3">
-          <p className="text-gray-700 text-sm">
-            Humanity starts with compassion...{" "}
-            <Link
-              href="https://heatheroes.org.ng/campaigns"
-              target="_blank"
-              className="text-pink-600 font-semibold hover:underline"
-            >
-              Make an impact
-            </Link>
-          </p>
-
-          <Link
-            href="https://heatheroes.org.ng/campaigns"
-            target="_blank"
-            className="animate-pulse"
-          >
-            <Image
-              src="/images/heart-heroes-logo.png"
-              alt="Heart Heroes Logo"
-              width={34}
-              height={34}
-              className="ml-2 rounded-full shadow-md hover:scale-105 transition-transform duration-300"
-            />
-          </Link>
+        {/* 🌐 Social Icons */}
+        <div className="flex justify-center gap-5 mb-4 text-orange-600">
+          <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition">
+            <FaFacebookF size={20} />
+          </a>
+          <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition">
+            <FaXTwitter size={20} />
+          </a>
+          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition">
+            <FaInstagram size={20} />
+          </a>
+          <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition">
+            <FaLinkedinIn size={20} />
+          </a>
+          <a href="https://t.me" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition">
+            <FaTelegramPlane size={20} />
+          </a>
         </div>
-      </div>
+
+        {/* 🧡 Footer Note */}
+        <p className="text-sm text-gray-600">
+          © {new Date().getFullYear()} SolarizedNG • Built with 💖 to empower and uplift lives.
+        </p>
+      </motion.div>
     </footer>
   );
 }
