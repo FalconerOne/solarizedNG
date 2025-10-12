@@ -32,6 +32,25 @@ export default function App({ Component, pageProps }: AppProps) {
         <FloatingShareBar />
       </div>
       <ScrollToTop />
+      import UpdatePrompt from "@/components/UpdatePrompt";
+
+export default function App({ Component, pageProps }: AppProps) {
+  // ... existing code
+  return (
+    <main className="min-h-screen flex flex-col bg-gray-50">
+      <Header />
+      <div className="flex-grow">
+        <Component {...pageProps} />
+      </div>
+      <Footer />
+      <div className="animate-[pulse_10s_ease-in-out_infinite]">
+        <FloatingShareBar />
+      </div>
+      <ScrollToTop />
+      <UpdatePrompt /> {/* ✅ Add this here */}
+    </main>
+  );
+}
     </main>
   );
 }
