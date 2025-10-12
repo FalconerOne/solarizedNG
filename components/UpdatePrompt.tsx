@@ -5,30 +5,36 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function UpdatePrompt() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         setUpdateAvailable(true);
+        setVisible(true);
+
+        // 🕒 Auto-hide after 10 seconds
+        setTimeout(() => setVisible(false), 10000);
       });
     }
   }, []);
 
-  if (!updateAvailable) return null;
+  if (!updateAvailable && !visible) return null;
 
   return (
     <AnimatePresence>
-      {updateAvailable && (
+      {visible && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.4, ease: "easeInOut" }}
-          className="fixed top-5 left-1/2 -translate-x-1/2 bg-orange-500 
-                     text-white px-6 py-3 rounded-2xl shadow-lg 
-                     z-50 text-center max-w-sm w-[90%]"
+          exit={{ opacity: 0, y: -30 }}
+          transition={{ duration: 0.5, ease: "easeInOut" }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 
+                     bg-orange-500 text-white px-6 py-3 rounded-2xl shadow-lg 
+                     z-50 text-center max-w-sm w-[90%] backdrop-blur-sm
+                     border border-orange-300/40"
         >
-          <p className="text-sm font-semibold">
+          <p className="text-sm font-semibold tracking-wide">
             🚀 New version available!
           </p>
           <button
