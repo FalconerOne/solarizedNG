@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Facebook,
   Twitter,
@@ -12,8 +12,75 @@ import {
 
 export default function FloatingShareBar() {
   const [open, setOpen] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [inactive, setInactive] = useState(false);
+  const [reappearing, setReappearing] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const tooltipTimer = useRef<NodeJS.Timeout | null>(null);
+
   const url = encodeURIComponent("https://solarizedng.vercel.app");
   const text = encodeURIComponent("Win with friends, Family & Others 🎉");
+
+  // 📜 Show bar when scrolled 20% down
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPos = window.scrollY;
+      const docHeight = document.body.scrollHeight - window.innerHeight;
+      const shouldShow = scrollPos / docHeight > 0.2;
+
+      if (shouldShow && !visible) {
+        setVisible(true);
+        setInactive(false);
+        setReappearing(true);
+        setShowTooltip(true);
+        setTimeout(() => setReappearing(false), 800);
+        setTimeout(() => setShowTooltip(false), 4000);
+      } else if (!shouldShow && visible) {
+        setVisible(false);
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [visible]);
+
+  // ⏳ Auto-hide after 10 s of inactivity
+  useEffect(() => {
+    if (visible) {
+      const resetTimer = () => {
+        setInactive(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => setInactive(true), 10000);
+      };
+
+      window.addEventListener("mousemove", resetTimer);
+      window.addEventListener("scroll", resetTimer);
+      window.addEventListener("click", resetTimer);
+      resetTimer();
+
+      return () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        window.removeEventListener("mousemove", resetTimer);
+        window.removeEventListener("scroll", resetTimer);
+        window.removeEventListener("click", resetTimer);
+      };
+    }
+  }, [visible]);
+
+  // 🔁 Tooltip reappears every 60 s (if unopened)
+  useEffect(() => {
+    if (visible && !open) {
+      tooltipTimer.current = setInterval(() => {
+        setShowTooltip(true);
+        setTimeout(() => setShowTooltip(false), 4000);
+      }, 60000); // 60 seconds
+    }
+    return () => {
+      if (tooltipTimer.current) clearInterval(tooltipTimer.current);
+    };
+  }, [visible, open]);
 
   const platforms = [
     {
@@ -32,7 +99,8 @@ export default function FloatingShareBar() {
       name: "Instagram",
       icon: <Instagram className="w-5 h-5" />,
       link: `https://www.instagram.com/?url=${url}`,
-      color: "bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF]",
+      color:
+        "bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF]",
     },
     {
       name: "WhatsApp",
@@ -56,12 +124,14 @@ export default function FloatingShareBar() {
 
   return (
     <div
-      className={`floating-share-btn fixed bottom-6 right-6 z-50 flex flex-col items-center ${
-        open ? "gap-3" : ""
-      } animate-[bounce_1.2s_ease-in-out]`}
+      className={`fixed bottom-6 right-6 z-50 flex flex-col items-center transition-all duration-500 ease-in-out ${
+        visible && !inactive
+          ? "opacity-100 translate-y-0"
+          : "opacity-0 translate-y-10 pointer-events-none"
+      } ${reappearing ? "animate-[bounce_0.8s_ease] drop-shadow-[0_0_12px_#f97316]" : ""}`}
       style={{ fontFamily: "'Segoe UI', sans-serif" }}
     >
-      {/* Social icons */}
+      {/* 🌐 Social links */}
       {open &&
         platforms.map((p) => (
           <a
@@ -76,18 +146,20 @@ export default function FloatingShareBar() {
           </a>
         ))}
 
-      {/* Main toggle button */}
+      {/* 🟠 Main share button */}
       <button
         onClick={() => setOpen(!open)}
-        className="floating-share-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-lg transition"
+        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-lg transition ${
+          reappearing ? "animate-[pulse_1.5s_ease-in-out]" : "animate-[bounce_1.2s_ease-in-out]"
+        }`}
         aria-label="Share"
       >
         <Share2 className="w-6 h-6" />
       </button>
 
-      {/* Tooltip */}
-      {!open && (
-        <div className="absolute -top-10 text-xs bg-orange-600 text-white px-3 py-1 rounded-full shadow-md animate-pulse">
+      {/* 💬 Tooltip */}
+      {showTooltip && !open && (
+        <div className="absolute -top-10 text-xs bg-orange-600 text-white px-3 py-1 rounded-full shadow-md animate-fadeOut">
           🔗 Share Now!
         </div>
       )}
