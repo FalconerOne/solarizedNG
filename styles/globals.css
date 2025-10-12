@@ -1,7 +1,9 @@
-/* ✅ Import Segoe UI font */
+/* 🌎 Global Styles for SolarizedNG */
+
+/* ✅ Import Segoe UI font (placed above Tailwind) */
 @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap');
 
-/* ✅ Tailwind directives (must come AFTER imports) */
+/* ✅ Tailwind Directives — must stay at the top of the file */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
