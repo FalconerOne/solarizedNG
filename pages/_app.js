@@ -31,6 +31,11 @@ function MyApp({ Component, pageProps }) {
         <Component {...pageProps} user={user} />
         {/* Global Reminder for Unactivated Users */}
         <ActivationReminder />
+    import NotificationBell from "@/components/NotificationBell";
+
+...
+
+<NotificationBell />
       </main>
     </div>
   );
