@@ -1,44 +1,32 @@
-import ReminderBanner from "@/components/ReminderBanner";
-import { useEffect } from "react";
-import type { AppProps } from "next/app";
 import "@/styles/globals.css";
+import type { AppProps } from "next/app";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingShareBar from "@/components/FloatingShareBar";
 import ScrollToTop from "@/components/ScrollToTop";
-import UpdatePrompt from "@/components/UpdatePrompt"; // ✅ Import it here
+import ReminderBanner from "@/components/ReminderBanner";
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function App({ Component, pageProps }: AppProps) {
-  // ✅ Register Service Worker once when app loads
+  // optional: refresh session silently
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/service-worker.js")
-          .then(() => console.log("✅ Service Worker registered"))
-          .catch((err) => console.error("❌ SW registration failed:", err));
-      });
-    }
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      supabase.auth.getSession();
+    });
+    return () => listener?.subscription.unsubscribe();
   }, []);
 
   return (
-    <main className="min-h-screen flex flex-col bg-gray-50">
+    <main className="min-h-screen flex flex-col bg-gray-50 font-[Segoe_UI]">
+      <ReminderBanner />
       <Header />
       <div className="flex-grow">
         <Component {...pageProps} />
       </div>
       <Footer />
-
-      {/* ✅ Floating share animation */}
-      <div className="animate-[pulse_10s_ease-in-out_infinite]">
-        <FloatingShareBar />
-      </div>
-
+      <FloatingShareBar />
       <ScrollToTop />
-
-      {/* ✅ Add the update prompt here — after everything else */}
-      <UpdatePrompt />
-      <ReminderBanner />
     </main>
   );
 }
