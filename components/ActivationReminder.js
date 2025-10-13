@@ -1,51 +1,50 @@
 // /components/ActivationReminder.js
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function ActivationReminder({ user }) {
-  const [activeEntries, setActiveEntries] = useState(0);
-  const [giveawayTitle, setGiveawayTitle] = useState("");
-  const [showPopup, setShowPopup] = useState(false);
-  const [isActivated, setIsActivated] = useState(false);
+export default function ActivationReminder() {
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-
     async function checkActivation() {
-      const { data: active } = await supabase
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: entry } = await supabase
         .from("entries")
-        .select("id, giveaway_id, is_activated")
+        .select("is_activated")
         .eq("user_id", user.id)
-        .eq("is_activated", true);
+        .maybeSingle();
 
-      const { data: giveaway } = await supabase
-        .from("giveaways")
-        .select("title")
-        .eq("is_active", true)
-        .single();
-
-      setGiveawayTitle(giveaway?.title || "current giveaway");
-      setActiveEntries(active?.length || 0);
-      setIsActivated(active?.length > 0);
-      setShowPopup(true);
+      if (!entry?.is_activated) setShow(true);
     }
-
     checkActivation();
-  }, [user]);
+  }, []);
 
-  if (!showPopup) return null;
+  if (!show) return null;
 
   return (
-    <div className="fixed inset-0 flex justify-center items-center bg-black/40 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm text-center relative">
-        <h2 className="text-lg font-bold mb-2">
-          {isActivated
-            ? "🎉 You're Activated!"
-            : "⚡ Activate to Enter the Draw!"}
-        </h2>
-        <p className="text-gray-700 text-sm mb-4">
-          {isActivated
-            ? `You're currently entered in the "${giveawayTitle}" giveaway with ${activeEntries} active entr${
-                activeEntries === 1 ? "y" : "ies"
-              }.
+    <div className="fixed bottom-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-800 p-4 rounded-lg shadow-lg z-50">
+      <p className="font-semibold">
+        ⚠️ You haven't activated your entry yet!
+      </p>
+      <p className="text-sm mb-2">
+        Activate now to join the next SolarizedNG Giveaway draw!
+      </p>
+      <a
+        href="/profile"
+        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
+      >
+        Activate Now
+      </a>
+      <button
+        onClick={() => setShow(false)}
+        className="ml-2 text-sm text-gray-600 hover:text-gray-800"
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+}
