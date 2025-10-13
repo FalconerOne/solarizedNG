@@ -5,33 +5,46 @@ import { supabase } from "@/lib/supabaseClient";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminNavbar from "@/components/AdminNavbar";
 
-export default function AdminEntries() {
+export default function EntriesPage() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [giveaways, setGiveaways] = useState([]);
+  const [selectedGiveaway, setSelectedGiveaway] = useState("all");
 
-  // Fetch all entries from Supabase
+  // ✅ Load entries and giveaways
   useEffect(() => {
-    async function fetchEntries() {
-      const { data, error } = await supabase
+    async function fetchData() {
+      const { data: giveawayData } = await supabase
+        .from("giveaways")
+        .select("id, title");
+      setGiveaways(giveawayData || []);
+
+      let query = supabase
         .from("entries")
-        .select(`
+        .select(
+          `
           id,
           user_id,
           giveaway_id,
           is_activated,
-          points,
           created_at,
-          users(full_name, email)
-        `)
+          giveaways (title),
+          profiles (full_name, email)
+        `
+        )
         .order("created_at", { ascending: false });
 
-      if (error) console.error("Error fetching entries:", error);
-      else setEntries(data || []);
+      if (selectedGiveaway !== "all") {
+        query = query.eq("giveaway_id", selectedGiveaway);
+      }
 
+      const { data, error } = await query;
+      if (error) console.error("Error loading entries:", error);
+      else setEntries(data || []);
       setLoading(false);
     }
-    fetchEntries();
-  }, []);
+    fetchData();
+  }, [selectedGiveaway]);
 
   if (loading) return <div className="p-6 text-center">Loading entries...</div>;
 
@@ -41,51 +54,74 @@ export default function AdminEntries() {
         <AdminNavbar />
 
         <div className="max-w-6xl mx-auto p-6">
-          <h1 className="text-2xl font-bold mb-6">All Entries</h1>
+          <h1 className="text-2xl font-bold mb-6">Entries Management</h1>
 
-          {entries.length === 0 ? (
-            <p>No entries found.</p>
-          ) : (
-            <div className="overflow-x-auto border rounded-lg shadow-sm">
-              <table className="w-full border-collapse">
-                <thead className="bg-gray-200 text-gray-700">
+          {/* ✅ Filter Section */}
+          <div className="flex items-center gap-4 mb-6">
+            <select
+              value={selectedGiveaway}
+              onChange={(e) => setSelectedGiveaway(e.target.value)}
+              className="border p-2 rounded"
+            >
+              <option value="all">All Giveaways</option>
+              {giveaways.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* ✅ Entries Table */}
+          <div className="bg-white border rounded-lg shadow overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead className="bg-gray-200 text-gray-700">
+                <tr>
+                  <th className="p-3 text-left">Name</th>
+                  <th className="p-3 text-left">Email</th>
+                  <th className="p-3 text-left">Giveaway</th>
+                  <th className="p-3 text-left">Activated</th>
+                  <th className="p-3 text-left">Date Entered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.length === 0 ? (
                   <tr>
-                    <th className="p-3 text-left">#</th>
-                    <th className="p-3 text-left">User</th>
-                    <th className="p-3 text-left">Email</th>
-                    <th className="p-3 text-left">Giveaway ID</th>
-                    <th className="p-3 text-left">Points</th>
-                    <th className="p-3 text-left">Activated</th>
-                    <th className="p-3 text-left">Date</th>
+                    <td colSpan="5" className="text-center p-6">
+                      No entries found.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry, index) => (
+                ) : (
+                  entries.map((entry) => (
                     <tr
                       key={entry.id}
-                      className="odd:bg-white even:bg-gray-100 border-b hover:bg-gray-50"
+                      className="odd:bg-white even:bg-gray-50 border-b hover:bg-gray-50"
                     >
-                      <td className="p-3">{index + 1}</td>
-                      <td className="p-3">{entry.users?.full_name || "N/A"}</td>
-                      <td className="p-3">{entry.users?.email || "N/A"}</td>
-                      <td className="p-3">{entry.giveaway_id}</td>
-                      <td className="p-3">{entry.points}</td>
+                      <td className="p-3">
+                        {entry.profiles?.full_name || "Unknown"}
+                      </td>
+                      <td className="p-3">{entry.profiles?.email || "N/A"}</td>
+                      <td className="p-3">{entry.giveaways?.title || "N/A"}</td>
                       <td className="p-3">
                         {entry.is_activated ? (
-                          <span className="text-green-600 font-semibold">Yes</span>
+                          <span className="text-green-700 font-semibold">
+                            Active
+                          </span>
                         ) : (
-                          <span className="text-red-600 font-semibold">No</span>
+                          <span className="text-red-700 font-semibold">
+                            Pending
+                          </span>
                         )}
                       </td>
                       <td className="p-3">
                         {new Date(entry.created_at).toLocaleString()}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </ProtectedRoute>
