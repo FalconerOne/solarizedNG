@@ -13,22 +13,54 @@ interface User {
 
 export default function LeaderboardPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 🟠 1️⃣ Fetch current session user
   useEffect(() => {
-    const fetchLeaderboard = async () => {
-      const { data, error } = await supabase
+    const fetchUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) return;
+
+      const { data } = await supabase
         .from("profiles")
         .select("id, username, points, activated, role")
-        .order("points", { ascending: false })
-        .limit(60);
+        .eq("id", session.user.id)
+        .single();
 
+      if (data) setSessionUser(data);
+    };
+
+    fetchUser();
+  }, []);
+
+  // 🟠 2️⃣ Fetch leaderboard with visibility rules
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      let query = supabase
+        .from("profiles")
+        .select("id, username, points, activated, role")
+        .order("points", { ascending: false });
+
+      // ⚙️ Apply Participation Visibility Rule
+      if (!sessionUser) {
+        // Guest view — capped
+        query = query.limit(60);
+      } else if (sessionUser.role !== "admin" && !sessionUser.activated) {
+        // Unactivated user — capped and shuffled for balance
+        query = query.limit(60);
+      }
+
+      const { data, error } = await query;
       if (!error && data) setUsers(data);
       setLoading(false);
     };
 
     fetchLeaderboard();
-  }, []);
+  }, [sessionUser]);
 
   if (loading)
     return <div className="p-6 text-gray-500">Loading leaderboard...</div>;
@@ -53,7 +85,9 @@ export default function LeaderboardPage() {
             >
               <td className="p-3">{idx + 1}</td>
               <td className="p-3">{user.username}</td>
-              <td className="p-3 font-semibold text-orange-700">{user.points}</td>
+              <td className="p-3 font-semibold text-orange-700">
+                {user.points}
+              </td>
               <td className="p-3">
                 {user.activated ? (
                   <span className="text-green-600 font-medium">Active</span>
@@ -65,6 +99,14 @@ export default function LeaderboardPage() {
           ))}
         </tbody>
       </table>
+
+      {/* 🧩 Optional visual cue for capped users */}
+      {sessionUser && !sessionUser.activated && (
+        <p className="mt-4 text-sm text-gray-500 text-center italic">
+          You’re viewing a limited leaderboard. Activate your account to see
+          all participants.
+        </p>
+      )}
     </div>
   );
 }
