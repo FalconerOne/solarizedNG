@@ -12,11 +12,11 @@ const Topbar: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [pulse, setPulse] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
-    // Realtime listener for new logs
     const channel = supabase
       .channel("activity-log-alerts")
       .on(
@@ -27,6 +27,10 @@ const Topbar: React.FC = () => {
           if (log.user_id === user.id) {
             setUnreadCount((prev) => prev + 1);
             setRecentLogs((prev) => [log, ...prev].slice(0, 5));
+            setPulse(true);
+
+            // Stop pulsing after 1.5s
+            setTimeout(() => setPulse(false), 1500);
           }
         }
       )
@@ -50,9 +54,15 @@ const Topbar: React.FC = () => {
         {/* 🔔 Bell Icon */}
         <button
           onClick={toggleDropdown}
-          className="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none"
+          className={`relative p-2 rounded-full hover:bg-gray-100 focus:outline-none ${
+            pulse ? "animate-pulse bg-orange-100" : ""
+          }`}
         >
-          <Bell className="w-5 h-5 text-gray-700" />
+          <Bell
+            className={`w-5 h-5 ${
+              pulse ? "text-orange-500" : "text-gray-700"
+            } transition-colors duration-300`}
+          />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5">
               {unreadCount}
