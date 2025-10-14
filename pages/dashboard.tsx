@@ -1,4 +1,3 @@
-// pages/dashboard.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -20,6 +19,7 @@ const DashboardPage: React.FC = () => {
   const [logMessage, setLogMessage] = useState<string>("");
   const [clearing, setClearing] = useState(false);
   const [clearMsg, setClearMsg] = useState<string | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   // Verify access
   useEffect(() => {
@@ -33,7 +33,7 @@ const DashboardPage: React.FC = () => {
     verifyAccess();
   }, [router]);
 
-  // Add new test log
+  // Add test log
   async function logActivity() {
     if (!user) {
       alert("No user session found");
@@ -54,16 +54,16 @@ const DashboardPage: React.FC = () => {
 
     if (error) {
       console.error("Error logging activity:", error);
-      alert("Failed to log activity");
+      alert("❌ Failed to log activity");
     } else {
       alert("✅ Activity logged successfully!");
       setLogMessage("");
     }
   }
 
-  // Admin: Clear test logs
+  // Admin: Clear logs
   async function clearTestLogs() {
-    if (!confirm("Are you sure you want to clear test logs?")) return;
+    if (!confirm("Are you sure you want to clear all logs?")) return;
     setClearing(true);
     setClearMsg(null);
     const { error } = await supabase.from("activity_log").delete().neq("id", "");
@@ -97,7 +97,7 @@ const DashboardPage: React.FC = () => {
       {/* Sidebar */}
       <Sidebar role={role} />
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col">
         <Topbar />
 
@@ -107,50 +107,64 @@ const DashboardPage: React.FC = () => {
           </h1>
 
           <p className="text-gray-600 mb-6">
-            This is your SolarizedNG dashboard overview. 
-            You can test logging to Supabase below.
+            This is your SolarizedNG dashboard overview. You can test logging to Supabase below.
           </p>
 
-          {/* Simple log input */}
-          <div className="mb-8 p-4 bg-white shadow rounded-xl">
-            <label className="block text-sm font-medium mb-2 text-gray-700">
-              Custom Log Message
-            </label>
-            <input
-              type="text"
-              value={logMessage}
-              onChange={(e) => setLogMessage(e.target.value)}
-              placeholder="Enter a message to log"
-              className="w-full border rounded-lg px-3 py-2 mb-3 focus:ring-2 focus:ring-orange-400 focus:outline-none"
-            />
+          {/* 🧰 Log Tools (collapsible) */}
+          <div className="mb-8 bg-white shadow rounded-xl overflow-hidden">
             <button
-              onClick={logActivity}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium"
+              onClick={() => setToolsOpen(!toolsOpen)}
+              className="w-full flex justify-between items-center px-4 py-3 bg-orange-50 hover:bg-orange-100 transition"
             >
-              Add Test Log
+              <span className="font-semibold text-gray-800">🧰 Log Tools</span>
+              <span className="text-gray-500">{toolsOpen ? "▲" : "▼"}</span>
             </button>
-          </div>
 
-          {/* Admin-only Clear Logs */}
-          {role === "admin" && (
-            <div className="mb-8 p-4 bg-white shadow rounded-xl">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800">
-                Admin Tools
-              </h2>
-              <button
-                onClick={clearTestLogs}
-                disabled={clearing}
-                className={`px-4 py-2 rounded-lg text-white font-medium ${
-                  clearing ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
-                }`}
-              >
-                {clearing ? "Clearing..." : "🧹 Clear Test Logs"}
-              </button>
-              {clearMsg && (
-                <p className="mt-2 text-sm text-gray-600">{clearMsg}</p>
-              )}
-            </div>
-          )}
+            {toolsOpen && (
+              <div className="p-4 border-t border-gray-200 transition-all duration-200">
+                {/* Add Test Log Section */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
+                    Custom Log Message
+                  </label>
+                  <input
+                    type="text"
+                    value={logMessage}
+                    onChange={(e) => setLogMessage(e.target.value)}
+                    placeholder="Enter a message to log"
+                    className="w-full border rounded-lg px-3 py-2 mb-3 focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={logActivity}
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium"
+                  >
+                    Add Test Log
+                  </button>
+                </div>
+
+                {/* Admin-only Clear Logs */}
+                {role === "admin" && (
+                  <div className="p-3 bg-red-50 rounded-lg">
+                    <h2 className="text-lg font-semibold mb-2 text-gray-800">
+                      Admin Tools
+                    </h2>
+                    <button
+                      onClick={clearTestLogs}
+                      disabled={clearing}
+                      className={`px-4 py-2 rounded-lg text-white font-medium ${
+                        clearing ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
+                      }`}
+                    >
+                      {clearing ? "Clearing..." : "🧹 Clear All Logs"}
+                    </button>
+                    {clearMsg && (
+                      <p className="mt-2 text-sm text-gray-600">{clearMsg}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Activity Feed */}
           <ActivityFeed />
