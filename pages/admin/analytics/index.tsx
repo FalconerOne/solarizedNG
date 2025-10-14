@@ -1,135 +1,251 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell, Legend
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
 } from "recharts";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import Sidebar from "@/components/Sidebar";
+import Topbar from "@/components/Topbar";
 
-const COLORS = ["#F97316", "#3B82F6", "#10B981", "#F59E0B", "#6366F1"];
+const COLORS = ["#f97316", "#60a5fa", "#34d399", "#facc15", "#a78bfa"];
 
 const AnalyticsPage: React.FC = () => {
-  const [entriesGrowth, setEntriesGrowth] = useState<any[]>([]);
-  const [topGiveaways, setTopGiveaways] = useState<any[]>([]);
-  const [prizeDistribution, setPrizeDistribution] = useState<any[]>([]);
+  const supabase = createClientComponentClient();
+  const [entriesData, setEntriesData] = useState<any[]>([]);
+  const [prizesData, setPrizesData] = useState<any[]>([]);
+  const [giveawayStats, setGiveawayStats] = useState<any[]>([]);
+  const [engagementData, setEngagementData] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Load analytics data
   useEffect(() => {
     async function fetchAnalytics() {
-      // 1️⃣ Entries over time (grouped by date)
-      const { data: entries } = await supabase
-        .from("entries")
-        .select("id, created_at")
-        .order("created_at", { ascending: true });
+      setLoading(true);
 
-      if (entries) {
-        const growthMap: Record<string, number> = {};
-        entries.forEach(e => {
-          const date = new Date(e.created_at).toISOString().split("T")[0];
-          growthMap[date] = (growthMap[date] || 0) + 1;
-        });
-        const formatted = Object.entries(growthMap).map(([date, count]) => ({
-          date,
-          count
-        }));
-        setEntriesGrowth(formatted);
-      }
+      try {
+        // 1️⃣ Entries over time
+        const { data: entries } = await supabase
+          .from("entries")
+          .select("created_at");
+        const dailyEntries = (entries || []).reduce((acc: any, entry: any) => {
+          const day = new Date(entry.created_at).toLocaleDateString();
+          acc[day] = (acc[day] || 0) + 1;
+          return acc;
+        }, {});
+        setEntriesData(
+          Object.entries(dailyEntries).map(([date, count]) => ({
+            date,
+            entries: count,
+          }))
+        );
 
-      // 2️⃣ Top giveaways by entries count
-      const { data: giveaways } = await supabase
-        .from("entries")
-        .select("giveaway_id, id");
-      if (giveaways) {
-        const countMap: Record<string, number> = {};
-        giveaways.forEach(g => {
-          countMap[g.giveaway_id] = (countMap[g.giveaway_id] || 0) + 1;
-        });
-        const sorted = Object.entries(countMap)
-          .map(([giveaway_id, total]) => ({ giveaway_id, total }))
-          .sort((a, b) => b.total - a.total)
+        // 2️⃣ Prizes claimed vs unclaimed
+        const { data: prizes } = await supabase
+          .from("prizes")
+          .select("id, claimed");
+        const claimed = prizes?.filter((p) => p.claimed).length || 0;
+        const unclaimed = prizes?.filter((p) => !p.claimed).length || 0;
+        setPrizesData([
+          { name: "Claimed", value: claimed },
+          { name: "Unclaimed", value: unclaimed },
+        ]);
+
+        // 3️⃣ Top performing giveaways
+        const { data: giveaways } = await supabase
+          .from("giveaways")
+          .select("id, title, entries_count");
+        const sorted = giveaways
+          ?.map((g) => ({
+            name: g.title || "Untitled",
+            entries: g.entries_count || 0,
+          }))
+          .sort((a, b) => b.entries - a.entries)
           .slice(0, 5);
-        setTopGiveaways(sorted);
+        setGiveawayStats(sorted || []);
+
+        // 4️⃣ Engagement overview (mock data, can be linked to analytics logs)
+        setEngagementData([
+          { name: "Mon", visits: 400, shares: 240, signups: 120 },
+          { name: "Tue", visits: 300, shares: 139, signups: 200 },
+          { name: "Wed", visits: 500, shares: 250, signups: 180 },
+          { name: "Thu", visits: 450, shares: 210, signups: 260 },
+          { name: "Fri", visits: 480, shares: 220, signups: 230 },
+          { name: "Sat", visits: 600, shares: 280, signups: 320 },
+          { name: "Sun", visits: 520, shares: 260, signups: 300 },
+        ]);
+
+        // 5️⃣ Referrals leaderboard (mock fallback)
+        const { data: referrals } = await supabase
+          .from("entries")
+          .select("referred_by");
+        const refMap = (referrals || []).reduce((acc: any, r: any) => {
+          if (!r.referred_by) return acc;
+          acc[r.referred_by] = (acc[r.referred_by] || 0) + 1;
+          return acc;
+        }, {});
+        setLeaderboard(
+          Object.entries(refMap)
+            .map(([ref, count]) => ({ ref, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5)
+        );
+      } catch (err) {
+        console.error("Error fetching analytics:", err);
       }
 
-      // 3️⃣ Prize type breakdown (count by type)
-      const { data: prizes } = await supabase
-        .from("prizes")
-        .select("id, title, giveaway_id");
-      if (prizes) {
-        const distMap: Record<string, number> = {};
-        prizes.forEach(p => {
-          distMap[p.title] = (distMap[p.title] || 0) + 1;
-        });
-        const formatted = Object.entries(distMap).map(([name, value]) => ({
-          name,
-          value
-        }));
-        setPrizeDistribution(formatted);
-      }
+      setLoading(false);
     }
 
     fetchAnalytics();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-500">
+        Loading analytics...
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-semibold text-gray-800 mb-6">
-        Analytics Dashboard
-      </h1>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar role="admin" />
+      <div className="flex-1 flex flex-col">
+        <Topbar />
+        <main className="p-6 overflow-y-auto flex-1">
+          <h1 className="text-2xl font-semibold mb-6">📊 Giveaway Analytics</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Entries Growth */}
-        <div className="bg-white rounded-2xl shadow p-5">
-          <h2 className="text-lg font-medium mb-3">Entries Growth Over Time</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={entriesGrowth}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#F97316" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {/* Entries Over Time */}
+            <div className="bg-white rounded-2xl shadow p-4">
+              <h2 className="font-medium text-lg mb-3">Entries Over Time</h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={entriesData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="entries"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
 
-        {/* Top Giveaways */}
-        <div className="bg-white rounded-2xl shadow p-5">
-          <h2 className="text-lg font-medium mb-3">Top Giveaways by Entries</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={topGiveaways}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="giveaway_id" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="total" fill="#3B82F6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+            {/* Prizes Claimed vs Unclaimed */}
+            <div className="bg-white rounded-2xl shadow p-4">
+              <h2 className="font-medium text-lg mb-3">
+                Prizes Claimed vs. Unclaimed
+              </h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={prizesData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                    dataKey="value"
+                  >
+                    {prizesData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
 
-        {/* Prize Distribution */}
-        <div className="bg-white rounded-2xl shadow p-5">
-          <h2 className="text-lg font-medium mb-3">Prize Distribution</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={prizeDistribution}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name }) => name}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {prizeDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            {/* Top Performing Giveaways */}
+            <div className="bg-white rounded-2xl shadow p-4">
+              <h2 className="font-medium text-lg mb-3">Top Performing Giveaways</h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={giveawayStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="entries" fill="#60a5fa" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Engagement Overview */}
+            <div className="bg-white rounded-2xl shadow p-4 md:col-span-2">
+              <h2 className="font-medium text-lg mb-3">Engagement Overview</h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <AreaChart data={engagementData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="visits"
+                    stackId="1"
+                    stroke="#f97316"
+                    fill="#f97316"
+                    fillOpacity={0.3}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="shares"
+                    stackId="1"
+                    stroke="#60a5fa"
+                    fill="#60a5fa"
+                    fillOpacity={0.3}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="signups"
+                    stackId="1"
+                    stroke="#34d399"
+                    fill="#34d399"
+                    fillOpacity={0.3}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Referrals Leaderboard */}
+            <div className="bg-white rounded-2xl shadow p-4">
+              <h2 className="font-medium text-lg mb-3">Top Referrers</h2>
+              <ul className="divide-y">
+                {leaderboard.map((r, i) => (
+                  <li
+                    key={i}
+                    className="flex justify-between py-2 text-sm text-gray-700"
+                  >
+                    <span>{r.ref}</span>
+                    <span className="font-medium text-orange-500">
+                      {r.count} referrals
+                    </span>
+                  </li>
                 ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+              </ul>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
