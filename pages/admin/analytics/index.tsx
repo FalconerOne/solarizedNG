@@ -1,146 +1,138 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Activity, Gift, Users, Trophy } from "lucide-react";
-import Sidebar from "@/components/Sidebar";
-import Topbar from "@/components/Topbar";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell, Legend
+} from "recharts";
 
-interface AnalyticsData {
-  total_giveaways: number;
-  active_giveaways: number;
-  total_entries: number;
-  total_prizes: number;
-  total_winners: number;
-}
+const COLORS = ["#F97316", "#3B82F6", "#10B981", "#F59E0B", "#6366F1"];
 
-const AdminAnalyticsPage: React.FC = () => {
-  const supabase = createClientComponentClient();
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  async function fetchAnalytics() {
-    setLoading(true);
-
-    try {
-      // You can later replace this with a Supabase View or RPC
-      const { data: giveaways } = await supabase.from("giveaways").select("*");
-      const { data: prizes } = await supabase.from("prizes").select("*");
-      const { data: entries } = await supabase.from("entries").select("*");
-      const { data: winners } = await supabase.from("winners").select("*");
-
-      const now = new Date();
-
-      const active = giveaways?.filter(
-        (g) =>
-          new Date(g.start_date) <= now && new Date(g.end_date) >= now
-      ).length;
-
-      setData({
-        total_giveaways: giveaways?.length || 0,
-        active_giveaways: active || 0,
-        total_entries: entries?.length || 0,
-        total_prizes: prizes?.length || 0,
-        total_winners: winners?.length || 0,
-      });
-    } catch (err) {
-      console.error("Failed to load analytics:", err);
-    }
-
-    setLoading(false);
-  }
+const AnalyticsPage: React.FC = () => {
+  const [entriesGrowth, setEntriesGrowth] = useState<any[]>([]);
+  const [topGiveaways, setTopGiveaways] = useState<any[]>([]);
+  const [prizeDistribution, setPrizeDistribution] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchAnalytics();
+    async function fetchAnalytics() {
+      // 1️⃣ Entries over time (grouped by date)
+      const { data: entries } = await supabase
+        .from("entries")
+        .select("id, created_at")
+        .order("created_at", { ascending: true });
 
-    // Auto-refresh every 30s
-    const interval = setInterval(fetchAnalytics, 30000);
-    return () => clearInterval(interval);
+      if (entries) {
+        const growthMap: Record<string, number> = {};
+        entries.forEach(e => {
+          const date = new Date(e.created_at).toISOString().split("T")[0];
+          growthMap[date] = (growthMap[date] || 0) + 1;
+        });
+        const formatted = Object.entries(growthMap).map(([date, count]) => ({
+          date,
+          count
+        }));
+        setEntriesGrowth(formatted);
+      }
+
+      // 2️⃣ Top giveaways by entries count
+      const { data: giveaways } = await supabase
+        .from("entries")
+        .select("giveaway_id, id");
+      if (giveaways) {
+        const countMap: Record<string, number> = {};
+        giveaways.forEach(g => {
+          countMap[g.giveaway_id] = (countMap[g.giveaway_id] || 0) + 1;
+        });
+        const sorted = Object.entries(countMap)
+          .map(([giveaway_id, total]) => ({ giveaway_id, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5);
+        setTopGiveaways(sorted);
+      }
+
+      // 3️⃣ Prize type breakdown (count by type)
+      const { data: prizes } = await supabase
+        .from("prizes")
+        .select("id, title, giveaway_id");
+      if (prizes) {
+        const distMap: Record<string, number> = {};
+        prizes.forEach(p => {
+          distMap[p.title] = (distMap[p.title] || 0) + 1;
+        });
+        const formatted = Object.entries(distMap).map(([name, value]) => ({
+          name,
+          value
+        }));
+        setPrizeDistribution(formatted);
+      }
+    }
+
+    fetchAnalytics();
   }, []);
 
-  const StatCard = ({
-    icon: Icon,
-    label,
-    value,
-    color,
-  }: {
-    icon: any;
-    label: string;
-    value: number | string;
-    color: string;
-  }) => (
-    <div className="p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-md hover:shadow-lg transition">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-1">
-            {label}
-          </h3>
-          {loading ? (
-            <div className="w-16 h-6 bg-gray-200 dark:bg-gray-700 animate-pulse rounded"></div>
-          ) : (
-            <p className="text-2xl font-semibold text-gray-800 dark:text-white">
-              {value}
-            </p>
-          )}
-        </div>
-        <div
-          className={`p-3 rounded-full text-white ${color} bg-opacity-90`}
-        >
-          <Icon className="w-6 h-6" />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
-      <Sidebar role="admin" />
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <h1 className="text-3xl font-semibold text-gray-800 mb-6">
+        Analytics Dashboard
+      </h1>
 
-      <div className="flex-1 flex flex-col">
-        <Topbar />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Entries Growth */}
+        <div className="bg-white rounded-2xl shadow p-5">
+          <h2 className="text-lg font-medium mb-3">Entries Growth Over Time</h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={entriesGrowth}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="count" stroke="#F97316" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
 
-        <main className="p-6 overflow-y-auto flex-1">
-          <h1 className="text-2xl font-semibold mb-6 text-gray-800 dark:text-white">
-            📊 Analytics Overview
-          </h1>
+        {/* Top Giveaways */}
+        <div className="bg-white rounded-2xl shadow p-5">
+          <h2 className="text-lg font-medium mb-3">Top Giveaways by Entries</h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={topGiveaways}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="giveaway_id" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="total" fill="#3B82F6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <StatCard
-              icon={Gift}
-              label="Total Giveaways"
-              value={data?.total_giveaways || 0}
-              color="bg-blue-500"
-            />
-            <StatCard
-              icon={Activity}
-              label="Active Giveaways"
-              value={data?.active_giveaways || 0}
-              color="bg-green-500"
-            />
-            <StatCard
-              icon={Users}
-              label="Total Entries"
-              value={data?.total_entries || 0}
-              color="bg-orange-500"
-            />
-            <StatCard
-              icon={Trophy}
-              label="Total Winners"
-              value={data?.total_winners || 0}
-              color="bg-purple-500"
-            />
-          </div>
-
-          <div className="mt-10 text-sm text-gray-500 dark:text-gray-400">
-            <p>
-              Stats auto-refresh every 30 seconds. Data pulled live from
-              Supabase.
-            </p>
-          </div>
-        </main>
+        {/* Prize Distribution */}
+        <div className="bg-white rounded-2xl shadow p-5">
+          <h2 className="text-lg font-medium mb-3">Prize Distribution</h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={prizeDistribution}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name }) => name}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {prizeDistribution.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
 };
 
-export default AdminAnalyticsPage;
+export default AnalyticsPage;
