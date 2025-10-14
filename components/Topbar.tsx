@@ -9,28 +9,23 @@ const Topbar: React.FC = () => {
   const supabase = createClientComponentClient();
   const user = useUser();
 
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [recentLogs, setRecentLogs] = useState<any[]>([]);
-  const [pulse, setPulse] = useState(false);
+  const [loading, setLoading] = useState(false);
 
+  // Fetch notifications for this user
   useEffect(() => {
     if (!user) return;
+    fetchNotifications();
 
     const channel = supabase
-      .channel("activity-log-alerts")
+      .channel("notifications-realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "activity_log" },
+        { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
-          const log = payload.new;
-          if (log.user_id === user.id) {
-            setUnreadCount((prev) => prev + 1);
-            setRecentLogs((prev) => [log, ...prev].slice(0, 5));
-            setPulse(true);
-
-            // Stop pulsing after 1.5s
-            setTimeout(() => setPulse(false), 1500);
+          if (payload.new.user_id === user.id) {
+            setNotifications((prev) => [payload.new, ...prev]);
           }
         }
       )
@@ -41,51 +36,85 @@ const Topbar: React.FC = () => {
     };
   }, [user]);
 
-  const toggleDropdown = () => {
-    setShowDropdown((prev) => !prev);
-    setUnreadCount(0);
-  };
+  async function fetchNotifications() {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(15);
+
+    if (!error && data) setNotifications(data);
+  }
+
+  async function markAllAsRead() {
+    if (!user) return;
+    setLoading(true);
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    setLoading(false);
+
+    if (!error) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    }
+  }
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
-    <header className="flex justify-between items-center px-6 py-3 bg-white shadow-sm">
-      <h1 className="text-lg font-semibold text-gray-800">SolarizedNG</h1>
+    <div className="flex items-center justify-between bg-white shadow px-6 py-3 border-b">
+      <h1 className="text-lg font-semibold text-gray-800">SolarizedNG Dashboard</h1>
 
       <div className="relative">
-        {/* 🔔 Bell Icon */}
         <button
-          onClick={toggleDropdown}
-          className={`relative p-2 rounded-full hover:bg-gray-100 focus:outline-none ${
-            pulse ? "animate-pulse bg-orange-100" : ""
-          }`}
+          onClick={() => setShowDropdown((prev) => !prev)}
+          className="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none"
         >
-          <Bell
-            className={`w-5 h-5 ${
-              pulse ? "text-orange-500" : "text-gray-700"
-            } transition-colors duration-300`}
-          />
+          <Bell className="w-6 h-6 text-gray-700" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5">
-              {unreadCount}
-            </span>
+            <span className="absolute top-1 right-1 bg-red-500 rounded-full w-2 h-2 animate-pulse"></span>
           )}
         </button>
 
-        {/* 🔽 Dropdown Panel */}
         {showDropdown && (
-          <div className="absolute right-0 mt-2 w-64 bg-white shadow-lg rounded-xl border border-gray-100 z-50">
-            <div className="p-3 border-b border-gray-100 font-medium text-gray-700">
-              Recent Activity
+          <div className="absolute right-0 mt-3 w-80 bg-white shadow-lg rounded-xl z-50 border border-gray-200">
+            <div className="flex items-center justify-between p-3 border-b">
+              <span className="font-semibold text-gray-800">Notifications</span>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  disabled={loading}
+                  className="text-xs text-orange-600 hover:underline disabled:opacity-50"
+                >
+                  {loading ? "Clearing..." : "Mark all as read"}
+                </button>
+              )}
             </div>
-            <ul className="max-h-60 overflow-y-auto">
-              {recentLogs.length === 0 ? (
-                <li className="p-3 text-gray-400 text-sm">No recent activity</li>
+
+            <ul className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+              {notifications.length === 0 ? (
+                <li className="p-4 text-sm text-gray-500 text-center">
+                  No notifications yet.
+                </li>
               ) : (
-                recentLogs.map((log) => (
-                  <li key={log.id} className="p-3 hover:bg-gray-50 text-sm">
-                    <p className="text-gray-700">{log.description}</p>
-                    <span className="text-xs text-gray-400">
-                      {new Date(log.created_at).toLocaleString()}
-                    </span>
+                notifications.map((n) => (
+                  <li
+                    key={n.id}
+                    className={`p-3 text-sm ${
+                      n.is_read
+                        ? "bg-gray-50 text-gray-600"
+                        : "bg-orange-50 text-gray-800 font-medium"
+                    }`}
+                  >
+                    {n.message}
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(n.created_at).toLocaleString()}
+                    </p>
                   </li>
                 ))
               )}
@@ -93,7 +122,7 @@ const Topbar: React.FC = () => {
           </div>
         )}
       </div>
-    </header>
+    </div>
   );
 };
 
