@@ -6,7 +6,13 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareSupabaseClient({ req, res });
 
-  // Get the session and maintenance flag
+  // 1️⃣ Allow ?preview=true to bypass maintenance
+  const previewBypass = req.nextUrl.searchParams.get('preview') === 'true';
+  if (previewBypass) {
+    return res; // let through immediately
+  }
+
+  // 2️⃣ Get user session + maintenance mode
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -18,11 +24,10 @@ export async function middleware(req: NextRequest) {
     .single();
 
   const maintenanceMode = setting?.value === true;
-
-  // Allow access if admin or maintenance disabled
   const userRole = session?.user?.user_metadata?.role;
   const isAdmin = userRole === 'admin';
 
+  // 3️⃣ If maintenance is on and user is not admin, redirect
   if (maintenanceMode && !isAdmin) {
     const url = req.nextUrl.clone();
     url.pathname = '/maintenance';
@@ -32,13 +37,9 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-// Apply middleware globally
+// Apply globally except static + API
 export const config = {
   matcher: [
-    /*
-      Apply to all routes except API and static assets
-      (e.g. /_next, /favicon, /api, etc.)
-    */
     '/((?!api|_next|favicon|maintenance).*)',
   ],
 };
