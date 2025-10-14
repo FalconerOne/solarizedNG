@@ -1,20 +1,19 @@
 // pages/dashboard.tsx
-
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useUser } from "@supabase/auth-helpers-react";
 import { checkRoleAccess } from "@/lib/checkRoleAccess";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 
-export default function DashboardPage() {
+const DashboardPage: React.FC = () => {
   const router = useRouter();
   const user = useUser();
 
-  const [role, setRole] = React.useState<string | null>(null);
-  const [authorized, setAuthorized] = React.useState<boolean | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     async function verifyAccess() {
       const result = await checkRoleAccess(["admin", "supervisor", "user"]);
       setAuthorized(result.authorized);
@@ -61,7 +60,7 @@ export default function DashboardPage() {
             Your role determines what data and controls you can access.
           </p>
 
-          {/* Sample panels (replace later with OverviewPanel, StatsWidget, etc.) */}
+          {/* Placeholder panels (you’ll later connect these to live Supabase data) */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <div className="p-6 bg-white rounded-2xl shadow">
               <h2 className="text-lg font-medium mb-2">Overview</h2>
@@ -82,4 +81,6 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+};
+
+export default DashboardPage;
