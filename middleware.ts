@@ -1,61 +1,44 @@
-// middleware.ts
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { createMiddlewareSupabaseClient } from '@supabase/auth-helpers-nextjs';
 
 export async function middleware(req: NextRequest) {
-  // Allow static assets and admin panel to bypass
-  const { pathname } = req.nextUrl;
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/favicon") ||
-    pathname.includes(".") // static files
-  ) {
-    return NextResponse.next();
-  }
+  const res = NextResponse.next();
+  const supabase = createMiddlewareSupabaseClient({ req, res });
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Get the session and maintenance flag
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  // Load maintenance setting
-  const { data: settings } = await supabase
-    .from("app_settings")
-    .select("key, value")
-    .eq("key", "maintenance_mode")
+  const { data: setting } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'maintenance_mode')
     .single();
 
-  if (settings?.value) {
-    // Check if user is admin (bypass)
-    const accessToken = req.cookies.get("sb-access-token")?.value;
-    if (accessToken) {
-      const { data: { user } = { user: null } } = await supabase.auth.getUser(accessToken);
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-        if (profile?.role === "admin") {
-          return NextResponse.next(); // Admin allowed
-        }
-      }
-    }
+  const maintenanceMode = setting?.value === true;
 
-    // Non-admin users see maintenance screen
-    const maintenanceUrl = req.nextUrl.clone();
-    maintenanceUrl.pathname = "/maintenance";
-    return NextResponse.rewrite(maintenanceUrl);
+  // Allow access if admin or maintenance disabled
+  const userRole = session?.user?.user_metadata?.role;
+  const isAdmin = userRole === 'admin';
+
+  if (maintenanceMode && !isAdmin) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/maintenance';
+    return NextResponse.rewrite(url);
   }
 
-  return NextResponse.next();
+  return res;
 }
 
+// Apply middleware globally
 export const config = {
   matcher: [
-    "/((?!_next|api|admin|static|favicon.ico).*)", // apply to all except admin/API/static
+    /*
+      Apply to all routes except API and static assets
+      (e.g. /_next, /favicon, /api, etc.)
+    */
+    '/((?!api|_next|favicon|maintenance).*)',
   ],
 };
