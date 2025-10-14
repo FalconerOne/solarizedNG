@@ -1,45 +1,44 @@
-import { NavLinks } from "@/config/navigation";
+import React from "react";
 import { NavLink } from "react-router-dom";
-import { useUser } from "@supabase/auth-helpers-react";
-import { Bell } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
+import { Home, BarChart, Activity, Settings, Bell } from "lucide-react";
 
 export default function Sidebar() {
   const { unreadCount } = useNotifications();
-  const user = useUser();
-  const role = user?.user_metadata?.role || "user";
+
+  const navItems = [
+    { name: "Overview", icon: <Home className="w-5 h-5" />, path: "/" },
+    { name: "Stats", icon: <BarChart className="w-5 h-5" />, path: "/stats" },
+    { name: "Activity", icon: <Activity className="w-5 h-5" />, path: "/activity" },
+    { name: "Notifications", icon: <Bell className="w-5 h-5" />, path: "/notifications" },
+    { name: "Settings", icon: <Settings className="w-5 h-5" />, path: "/settings" },
+  ];
 
   return (
-    <aside className="w-64 p-4 border-r border-gray-200 h-screen bg-white">
-      <nav>
-        <ul className="space-y-2">
-          {NavLinks.filter(link => link.roles.includes(role)).map(link => (
-            <li key={link.path}>
-              <NavLink
-                to={link.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 p-2 rounded-md transition ${
-                    isActive ? "bg-gray-200" : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                {link.icon === "bell" ? (
-                  <Bell size={18} />
-                ) : (
-                  <i data-icon={link.icon}></i>
-                )}
-                <span>{link.label}</span>
-                {link.badgeKey === "unreadCount" && unreadCount > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    {unreadCount}
-                  </span>
-                )}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+    <aside className="h-screen w-60 bg-gray-50 border-r flex flex-col p-4">
+      <h2 className="text-lg font-semibold mb-6">SolarizedNG</h2>
+      <nav className="flex flex-col space-y-2">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.name}
+            to={item.path}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-lg transition ${
+                isActive ? "bg-blue-100 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+              }`
+            }
+          >
+            <div className="relative">
+              {item.icon}
+              {/* 🔴 Unread badge for Notifications */}
+              {item.name === "Notifications" && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 rounded-full h-2 w-2"></span>
+              )}
+            </div>
+            <span className="text-sm font-medium">{item.name}</span>
+          </NavLink>
+        ))}
       </nav>
     </aside>
   );
 }
-
