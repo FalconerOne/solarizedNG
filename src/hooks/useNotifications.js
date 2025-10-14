@@ -11,47 +11,63 @@ export function useNotifications() {
   useEffect(() => {
     if (!user) return;
 
-    // 1. Initial fetch
+    // 1️⃣ Initial fetch
     const fetchData = async () => {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-      if (!error) {
-        setNotifications(data);
-        setUnreadCount(data.filter(n => !n.is_read).length);
+      if (error) {
+        console.error("Error fetching notifications:", error);
+        return;
       }
+
+      setNotifications(data || []);
+      setUnreadCount(data?.filter((n) => !n.is_read)?.length || 0);
     };
+
     fetchData();
 
-    // 2. Subscribe for realtime changes
+    // 2️⃣ Realtime listener
     const channel = supabase
-      .channel("notifications")
+      .channel("realtime:notifications")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notifications" },
-        payload => {
-          setNotifications(prev => {
+        (payload) => {
+          setNotifications((prev) => {
             let next = [...prev];
-            const newRow = payload.new;
-            const existingIndex = next.findIndex(n => n.id === newRow.id);
-            if (existingIndex > -1) next[existingIndex] = newRow;
-            else next.unshift(newRow);
-            setUnreadCount(next.filter(n => !n.is_read).length);
+            const { eventType, new: newRow, old: oldRow } = payload;
+
+            if (eventType === "INSERT") {
+              next = [newRow, ...prev];
+            } else if (eventType === "UPDATE") {
+              next = prev.map((n) => (n.id === newRow.id ? newRow : n));
+            } else if (eventType === "DELETE") {
+              next = prev.filter((n) => n.id !== oldRow.id);
+            }
+
+            setUnreadCount(next.filter((n) => !n.is_read).length);
             return next;
           });
         }
       )
       .subscribe();
 
+    // 3️⃣ Cleanup on unmount
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, supabase]);
 
-  const markAsRead = async id => {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+  // 4️⃣ Mark notification as read
+  const markAsRead = async (id) => {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id);
+    if (error) console.error("Error marking notification as read:", error);
   };
 
   return { notifications, unreadCount, markAsRead };
