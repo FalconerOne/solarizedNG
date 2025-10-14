@@ -1,181 +1,178 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useSearchParams } from "next/navigation";
-import { PlusCircle, Edit, Trash2, ArrowLeft, Upload } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { Plus, Edit, Trash2 } from "lucide-react";
 
-export default function PrizesPage() {
-  const supabase = createClientComponentClient();
-  const params = useSearchParams();
-  const giveaway_id = params.get("giveaway_id");
+interface Giveaway {
+  id: string;
+  title: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  created_at?: string;
+}
 
-  const [prizes, setPrizes] = useState<any[]>([]);
+export default function GiveawaysPage() {
+  const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<Giveaway | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: string } | null>(
+    null
+  );
+
   const [form, setForm] = useState({
     title: "",
     description: "",
-    image_url: "",
-    value: "",
+    start_date: "",
+    end_date: "",
   });
 
   useEffect(() => {
-    if (giveaway_id) fetchPrizes();
-  }, [giveaway_id]);
+    fetchGiveaways();
+  }, []);
 
-  async function fetchPrizes() {
+  async function fetchGiveaways() {
     setLoading(true);
     const { data, error } = await supabase
-      .from("prizes")
+      .from("giveaways")
       .select("*")
-      .eq("giveaway_id", giveaway_id)
       .order("created_at", { ascending: false });
-    if (!error && data) setPrizes(data);
+    if (error) console.error(error);
+    else setGiveaways(data || []);
     setLoading(false);
   }
 
-  async function savePrize() {
-    const payload = {
-      giveaway_id,
-      title: form.title,
-      description: form.description,
-      image_url: form.image_url,
-      value: form.value ? parseFloat(form.value) : null,
-    };
+  function showToast(message: string, type = "success") {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }
 
-    if (editing) {
-      await supabase.from("prizes").update(payload).eq("id", editing.id);
-    } else {
-      await supabase.from("prizes").insert([payload]);
-    }
-
-    setShowModal(false);
+  function openAddModal() {
     setEditing(null);
-    setForm({ title: "", description: "", image_url: "", value: "" });
-    fetchPrizes();
-  }
-
-  async function deletePrize(id: number) {
-    if (!confirm("Are you sure you want to delete this prize?")) return;
-    await supabase.from("prizes").delete().eq("id", id);
-    fetchPrizes();
-  }
-
-  function openModal(prize?: any) {
-    if (prize) {
-      setEditing(prize);
-      setForm({
-        title: prize.title,
-        description: prize.description,
-        image_url: prize.image_url || "",
-        value: prize.value || "",
-      });
-    } else {
-      setEditing(null);
-      setForm({ title: "", description: "", image_url: "", value: "" });
-    }
+    setForm({ title: "", description: "", start_date: "", end_date: "" });
     setShowModal(true);
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    try {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  function openEditModal(giveaway: Giveaway) {
+    setEditing(giveaway);
+    setForm({
+      title: giveaway.title,
+      description: giveaway.description,
+      start_date: giveaway.start_date?.split("T")[0] || "",
+      end_date: giveaway.end_date?.split("T")[0] || "",
+    });
+    setShowModal(true);
+  }
 
-      setUploading(true);
-      const fileName = `${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage
-        .from("prize-images")
-        .upload(fileName, file, { upsert: true });
+  async function saveGiveaway() {
+    const { title, description, start_date, end_date } = form;
+    if (!title || !description) {
+      showToast("Please fill in all required fields", "error");
+      return;
+    }
 
-      if (error) throw error;
+    if (editing) {
+      const { error } = await supabase
+        .from("giveaways")
+        .update({ title, description, start_date, end_date })
+        .eq("id", editing.id);
+      if (error) {
+        console.error(error);
+        showToast("Error updating giveaway", "error");
+      } else {
+        showToast("Giveaway updated successfully!");
+        setShowModal(false);
+        fetchGiveaways();
+      }
+    } else {
+      const { error } = await supabase
+        .from("giveaways")
+        .insert([{ title, description, start_date, end_date }]);
+      if (error) {
+        console.error(error);
+        showToast("Error creating giveaway", "error");
+      } else {
+        showToast("Giveaway added successfully!");
+        setShowModal(false);
+        fetchGiveaways();
+      }
+    }
+  }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("prize-images").getPublicUrl(fileName);
-
-      setForm((prev) => ({ ...prev, image_url: publicUrl }));
-    } catch (err) {
-      console.error("Image upload failed:", err);
-      alert("Image upload failed. Try again.");
-    } finally {
-      setUploading(false);
+  async function deleteGiveaway(id: string) {
+    if (!confirm("Are you sure you want to delete this giveaway?")) return;
+    const { error } = await supabase.from("giveaways").delete().eq("id", id);
+    if (error) {
+      console.error(error);
+      showToast("Failed to delete giveaway", "error");
+    } else {
+      showToast("Giveaway deleted!");
+      fetchGiveaways();
     }
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 min-h-screen">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => (window.location.href = "/admin/giveaways")}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-            title="Back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            🎁 Prizes Management
-          </h1>
-        </div>
+        <h1 className="text-2xl font-semibold text-gray-800">Giveaways</h1>
         <button
-          onClick={() => openModal()}
-          className="flex items-center bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+          onClick={openAddModal}
+          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg shadow"
         >
-          <PlusCircle className="w-5 h-5 mr-2" /> Add Prize
+          <Plus size={18} /> Add Giveaway
         </button>
       </div>
 
+      {toast && (
+        <div
+          className={`fixed top-6 right-6 px-4 py-2 rounded-lg text-white shadow-md transition ${
+            toast.type === "error" ? "bg-red-500" : "bg-green-500"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {loading ? (
-        <p>Loading prizes...</p>
-      ) : prizes.length === 0 ? (
-        <p className="text-gray-500">No prizes yet for this giveaway.</p>
+        <div className="text-gray-500">Loading giveaways...</div>
+      ) : giveaways.length === 0 ? (
+        <div className="text-gray-500">No giveaways found.</div>
       ) : (
         <div className="grid gap-4">
-          {prizes.map((p) => (
+          {giveaways.map((g) => (
             <div
-              key={p.id}
-              className="bg-white p-4 rounded-xl shadow flex justify-between items-start"
+              key={g.id}
+              className="p-4 bg-white shadow rounded-xl border flex justify-between items-start hover:shadow-md transition"
             >
-              <div className="flex gap-4 items-center">
-                {p.image_url ? (
-                  <img
-                    src={p.image_url}
-                    alt={p.title}
-                    className="w-16 h-16 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
-                    🏆
-                  </div>
-                )}
-                <div>
-                  <h2 className="text-lg font-medium text-gray-800">
-                    {p.title}
-                  </h2>
-                  <p className="text-gray-500 text-sm mb-2">{p.description}</p>
-                  {p.value && (
-                    <p className="text-xs text-gray-400">Value: ${p.value}</p>
-                  )}
-                </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  {g.title}
+                </h2>
+                <p className="text-gray-600 mt-1">{g.description}</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  {g.start_date
+                    ? `📅 ${new Date(g.start_date).toLocaleDateString()} - ${new Date(
+                        g.end_date
+                      ).toLocaleDateString()}`
+                    : "No date range"}
+                </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
-                  onClick={() => openModal(p)}
-                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
+                  onClick={() => openEditModal(g)}
+                  className="p-2 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600"
                   title="Edit"
                 >
-                  <Edit className="w-5 h-5" />
+                  <Edit size={18} />
                 </button>
                 <button
-                  onClick={() => deletePrize(p.id)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  onClick={() => deleteGiveaway(g.id)}
+                  className="p-2 rounded-md bg-red-50 hover:bg-red-100 text-red-600"
                   title="Delete"
                 >
-                  <Trash2 className="w-5 h-5" />
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>
@@ -183,74 +180,60 @@ export default function PrizesPage() {
         </div>
       )}
 
+      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">
-              {editing ? "Edit Prize" : "Add Prize"}
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-lg p-6 relative">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">
+              {editing ? "Edit Giveaway" : "Add Giveaway"}
             </h2>
-
-            <input
-              type="text"
-              placeholder="Title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full mb-3 border px-3 py-2 rounded-lg"
-            />
-
-            <textarea
-              placeholder="Description"
-              value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
-              className="w-full mb-3 border px-3 py-2 rounded-lg"
-            />
-
-            {form.image_url && (
-              <img
-                src={form.image_url}
-                alt="Preview"
-                className="w-32 h-32 object-cover rounded-lg mb-3"
-              />
-            )}
-
-            <label className="block mb-3">
-              <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600">
-                  Upload prize image
-                </span>
-              </div>
+            <div className="space-y-3">
               <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                disabled={uploading}
-                className="mt-2 w-full text-sm"
+                type="text"
+                placeholder="Title"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-orange-400"
               />
-            </label>
-
-            <input
-              type="number"
-              placeholder="Value (optional)"
-              value={form.value}
-              onChange={(e) => setForm({ ...form, value: e.target.value })}
-              className="w-full mb-3 border px-3 py-2 rounded-lg"
-            />
-
-            <div className="flex justify-end gap-3 mt-4">
+              <textarea
+                placeholder="Description"
+                value={form.description}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
+                className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-orange-400"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={form.start_date}
+                  onChange={(e) =>
+                    setForm({ ...form, start_date: e.target.value })
+                  }
+                  className="w-1/2 border px-3 py-2 rounded-lg focus:ring-2 focus:ring-orange-400"
+                />
+                <input
+                  type="date"
+                  value={form.end_date}
+                  onChange={(e) =>
+                    setForm({ ...form, end_date: e.target.value })
+                  }
+                  className="w-1/2 border px-3 py-2 rounded-lg focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 rounded-lg border hover:bg-gray-100"
               >
                 Cancel
               </button>
               <button
-                onClick={savePrize}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                onClick={saveGiveaway}
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
               >
-                {editing ? "Update" : "Save"}
+                {editing ? "Save Changes" : "Add Giveaway"}
               </button>
             </div>
           </div>
