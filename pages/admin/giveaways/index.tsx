@@ -1,194 +1,200 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Edit, Trash2, Plus, CheckCircle, XCircle, RefreshCcw } from "lucide-react";
-import { toast } from "sonner";
+import React, { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { PlusCircle, ChevronDown, ChevronRight, Trash2, Edit } from "lucide-react";
 
-export default function AdminGiveawaysPage() {
+const GiveawaysPage: React.FC = () => {
+  const supabase = createClientComponentClient();
   const [giveaways, setGiveaways] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    id: null,
-    title: "",
-    description: "",
-    active: true,
-  });
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [prizes, setPrizes] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState(false);
 
-  // Load all giveaways
+  // Fetch all giveaways
   useEffect(() => {
-    loadGiveaways();
+    fetchGiveaways();
   }, []);
 
-  async function loadGiveaways() {
+  async function fetchGiveaways() {
     setLoading(true);
     const { data, error } = await supabase
       .from("giveaways")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) toast.error("Failed to load giveaways");
-    else setGiveaways(data || []);
+    if (!error && data) setGiveaways(data);
     setLoading(false);
   }
 
-  // Save (create or update)
-  async function saveGiveaway() {
-    if (!form.title.trim()) {
-      toast.error("Please enter a title");
+  // Expand or collapse giveaway to show prizes
+  async function togglePrizes(giveawayId: string) {
+    if (expanded === giveawayId) {
+      setExpanded(null);
       return;
     }
 
-    const payload = {
-      title: form.title.trim(),
-      description: form.description.trim(),
-      active: form.active,
-    };
+    if (!prizes[giveawayId]) {
+      const { data, error } = await supabase
+        .from("prizes")
+        .select("*")
+        .eq("giveaway_id", giveawayId)
+        .order("rank", { ascending: true });
+      if (!error) setPrizes((prev) => ({ ...prev, [giveawayId]: data || [] }));
+    }
 
-    if (form.id) {
-      const { error } = await supabase.from("giveaways").update(payload).eq("id", form.id);
-      if (error) return toast.error("Update failed");
-      toast.success("Giveaway updated");
+    setExpanded(giveawayId);
+  }
+
+  // Add a prize
+  async function addPrize(giveawayId: string) {
+    const title = prompt("Enter prize title:");
+    if (!title) return;
+
+    const description = prompt("Enter description (optional):") || "";
+    const rank = parseInt(prompt("Enter rank (1 for top prize):") || "1");
+
+    const { error } = await supabase.from("prizes").insert([
+      { giveaway_id: giveawayId, title, description, rank },
+    ]);
+
+    if (error) {
+      alert("Error adding prize");
+      console.error(error);
     } else {
-      const { error } = await supabase.from("giveaways").insert([payload]);
-      if (error) return toast.error("Create failed");
-      toast.success("Giveaway created");
-    }
-
-    setForm({ id: null, title: "", description: "", active: true });
-    await loadGiveaways();
-  }
-
-  // Edit mode
-  function editGiveaway(g: any) {
-    setForm({
-      id: g.id,
-      title: g.title,
-      description: g.description,
-      active: g.active,
-    });
-  }
-
-  // Delete
-  async function deleteGiveaway(id: number) {
-    if (!confirm("Delete this giveaway?")) return;
-    const { error } = await supabase.from("giveaways").delete().eq("id", id);
-    if (error) toast.error("Delete failed");
-    else {
-      toast.success("Giveaway deleted");
-      setGiveaways((prev) => prev.filter((g) => g.id !== id));
+      alert("Prize added successfully!");
+      togglePrizes(giveawayId);
+      togglePrizes(giveawayId); // refresh view
     }
   }
 
-  // Toggle active/inactive
-  async function toggleActive(id: number, active: boolean) {
-    const { error } = await supabase.from("giveaways").update({ active }).eq("id", id);
-    if (error) toast.error("Toggle failed");
-    else {
-      toast.success(`Giveaway ${active ? "activated" : "deactivated"}`);
-      setGiveaways((prev) =>
-        prev.map((g) => (g.id === id ? { ...g, active } : g))
-      );
+  // Delete a prize
+  async function deletePrize(prizeId: string, giveawayId: string) {
+    if (!confirm("Delete this prize?")) return;
+    const { error } = await supabase.from("prizes").delete().eq("id", prizeId);
+    if (error) {
+      alert("Failed to delete");
+      console.error(error);
+    } else {
+      setPrizes((prev) => ({
+        ...prev,
+        [giveawayId]: prev[giveawayId].filter((p) => p.id !== prizeId),
+      }));
+    }
+  }
+
+  // Edit a prize
+  async function editPrize(prize: any, giveawayId: string) {
+    const title = prompt("Edit title:", prize.title);
+    if (!title) return;
+
+    const description = prompt("Edit description:", prize.description || "");
+    const rank = parseInt(prompt("Edit rank:", prize.rank || "1"));
+
+    const { error } = await supabase
+      .from("prizes")
+      .update({ title, description, rank })
+      .eq("id", prize.id);
+
+    if (error) {
+      alert("Failed to update prize");
+      console.error(error);
+    } else {
+      setPrizes((prev) => ({
+        ...prev,
+        [giveawayId]: prev[giveawayId].map((p) =>
+          p.id === prize.id ? { ...p, title, description, rank } : p
+        ),
+      }));
     }
   }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-        🎁 Manage Giveaways
-        <Button onClick={loadGiveaways} variant="outline" size="sm" className="ml-auto flex items-center gap-1">
-          <RefreshCcw className="h-4 w-4" /> Refresh
-        </Button>
+      <h1 className="text-2xl font-semibold mb-6 flex items-center">
+        <span>🎁 Giveaways & Prizes</span>
       </h1>
 
-      {/* Form */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="grid gap-3">
-            <input
-              type="text"
-              placeholder="Giveaway Title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="border rounded-lg px-3 py-2"
-            />
-            <textarea
-              placeholder="Description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="border rounded-lg px-3 py-2"
-            />
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                />
-                Active
-              </label>
-              <Button onClick={saveGiveaway} className="bg-orange-500 hover:bg-orange-600 text-white">
-                {form.id ? "Update Giveaway" : "Create Giveaway"}
-              </Button>
-              {form.id && (
-                <Button
-                  onClick={() => setForm({ id: null, title: "", description: "", active: true })}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {loading && <p>Loading giveaways...</p>}
 
-      {/* List */}
-      {loading ? (
-        <div className="text-gray-500">Loading giveaways...</div>
-      ) : giveaways.length === 0 ? (
-        <div className="text-gray-500">No giveaways found.</div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {giveaways.map((g) => (
-            <Card key={g.id} className="relative">
-              <CardContent className="p-4">
-                <h2 className="text-lg font-semibold mb-1">{g.title}</h2>
-                <p className="text-gray-600 text-sm mb-3">{g.description}</p>
-                <div className="flex items-center gap-3">
-                  <Button onClick={() => editGiveaway(g)} variant="outline" size="sm">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => deleteGiveaway(g.id)}
-                    variant="destructive"
-                    size="sm"
-                    className="bg-red-500 hover:bg-red-600 text-white"
+      <div className="space-y-4">
+        {giveaways.map((giveaway) => (
+          <div
+            key={giveaway.id}
+            className="bg-white shadow rounded-2xl p-4 border border-gray-100"
+          >
+            {/* Giveaway header */}
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold">{giveaway.title}</h2>
+                <p className="text-gray-500 text-sm">
+                  {giveaway.description || "No description"}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => addPrize(giveaway.id)}
+                  className="text-orange-500 hover:text-orange-600 flex items-center gap-1"
+                >
+                  <PlusCircle size={18} /> Add Prize
+                </button>
+                <button
+                  onClick={() => togglePrizes(giveaway.id)}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  {expanded === giveaway.id ? (
+                    <ChevronDown size={20} />
+                  ) : (
+                    <ChevronRight size={20} />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Prize list */}
+            {expanded === giveaway.id && (
+              <div className="mt-4 border-t border-gray-100 pt-3 space-y-2">
+                {(!prizes[giveaway.id] || prizes[giveaway.id].length === 0) && (
+                  <p className="text-gray-500 text-sm">No prizes added yet.</p>
+                )}
+
+                {prizes[giveaway.id]?.map((prize) => (
+                  <div
+                    key={prize.id}
+                    className="flex justify-between items-center bg-gray-50 rounded-lg p-2"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => toggleActive(g.id, !g.active)}
-                    variant="outline"
-                    size="sm"
-                    className={g.active ? "text-green-600" : "text-gray-500"}
-                  >
-                    {g.active ? (
-                      <CheckCircle className="h-4 w-4" />
-                    ) : (
-                      <XCircle className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <div className="absolute top-3 right-3 text-xs text-gray-400">
-                  {g.active ? "Active" : "Inactive"}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                    <div>
+                      <p className="font-medium">{prize.title}</p>
+                      <p className="text-sm text-gray-500">
+                        {prize.description || "—"} (Rank: {prize.rank})
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => editPrize(prize, giveaway.id)}
+                        className="text-blue-500 hover:text-blue-600"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => deletePrize(prize.id, giveaway.id)}
+                        className="text-red-500 hover:text-red-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {giveaways.length === 0 && !loading && (
+          <p className="text-gray-500 text-sm">No giveaways found.</p>
+        )}
+      </div>
     </div>
   );
-}
+};
+
+export default GiveawaysPage;
