@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useSearchParams } from "next/navigation";
-import { PlusCircle, Edit, Trash2, ArrowLeft } from "lucide-react";
+import { PlusCircle, Edit, Trash2, ArrowLeft, Upload } from "lucide-react";
 
 export default function PrizesPage() {
   const supabase = createClientComponentClient();
@@ -13,6 +13,7 @@ export default function PrizesPage() {
   const [prizes, setPrizes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -77,6 +78,32 @@ export default function PrizesPage() {
       setForm({ title: "", description: "", image_url: "", value: "" });
     }
     setShowModal(true);
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setUploading(true);
+      const fileName = `${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from("prize-images")
+        .upload(fileName, file, { upsert: true });
+
+      if (error) throw error;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("prize-images").getPublicUrl(fileName);
+
+      setForm((prev) => ({ ...prev, image_url: publicUrl }));
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      alert("Image upload failed. Try again.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -162,6 +189,7 @@ export default function PrizesPage() {
             <h2 className="text-xl font-semibold mb-4">
               {editing ? "Edit Prize" : "Add Prize"}
             </h2>
+
             <input
               type="text"
               placeholder="Title"
@@ -169,6 +197,7 @@ export default function PrizesPage() {
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               className="w-full mb-3 border px-3 py-2 rounded-lg"
             />
+
             <textarea
               placeholder="Description"
               value={form.description}
@@ -177,15 +206,31 @@ export default function PrizesPage() {
               }
               className="w-full mb-3 border px-3 py-2 rounded-lg"
             />
-            <input
-              type="url"
-              placeholder="Image URL"
-              value={form.image_url}
-              onChange={(e) =>
-                setForm({ ...form, image_url: e.target.value })
-              }
-              className="w-full mb-3 border px-3 py-2 rounded-lg"
-            />
+
+            {form.image_url && (
+              <img
+                src={form.image_url}
+                alt="Preview"
+                className="w-32 h-32 object-cover rounded-lg mb-3"
+              />
+            )}
+
+            <label className="block mb-3">
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-600">
+                  Upload prize image
+                </span>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={uploading}
+                className="mt-2 w-full text-sm"
+              />
+            </label>
+
             <input
               type="number"
               placeholder="Value (optional)"
