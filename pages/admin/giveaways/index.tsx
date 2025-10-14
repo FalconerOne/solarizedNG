@@ -2,16 +2,21 @@
 
 import React, { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { PlusCircle, ChevronDown, ChevronRight, Trash2, Edit } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Gift } from "lucide-react";
 
-const GiveawaysPage: React.FC = () => {
+export default function GiveawaysPage() {
   const supabase = createClientComponentClient();
   const [giveaways, setGiveaways] = useState<any[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [prizes, setPrizes] = useState<Record<string, any[]>>({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    start_date: "",
+    end_date: "",
+  });
 
-  // Fetch all giveaways
   useEffect(() => {
     fetchGiveaways();
   }, []);
@@ -22,179 +27,171 @@ const GiveawaysPage: React.FC = () => {
       .from("giveaways")
       .select("*")
       .order("created_at", { ascending: false });
+
     if (!error && data) setGiveaways(data);
     setLoading(false);
   }
 
-  // Expand or collapse giveaway to show prizes
-  async function togglePrizes(giveawayId: string) {
-    if (expanded === giveawayId) {
-      setExpanded(null);
-      return;
+  async function saveGiveaway() {
+    const payload = {
+      title: form.title,
+      description: form.description,
+      start_date: form.start_date,
+      end_date: form.end_date,
+    };
+
+    if (editing) {
+      await supabase.from("giveaways").update(payload).eq("id", editing.id);
+    } else {
+      await supabase.from("giveaways").insert([payload]);
     }
 
-    if (!prizes[giveawayId]) {
-      const { data, error } = await supabase
-        .from("prizes")
-        .select("*")
-        .eq("giveaway_id", giveawayId)
-        .order("rank", { ascending: true });
-      if (!error) setPrizes((prev) => ({ ...prev, [giveawayId]: data || [] }));
-    }
-
-    setExpanded(giveawayId);
+    setShowModal(false);
+    setEditing(null);
+    setForm({ title: "", description: "", start_date: "", end_date: "" });
+    fetchGiveaways();
   }
 
-  // Add a prize
-  async function addPrize(giveawayId: string) {
-    const title = prompt("Enter prize title:");
-    if (!title) return;
-
-    const description = prompt("Enter description (optional):") || "";
-    const rank = parseInt(prompt("Enter rank (1 for top prize):") || "1");
-
-    const { error } = await supabase.from("prizes").insert([
-      { giveaway_id: giveawayId, title, description, rank },
-    ]);
-
-    if (error) {
-      alert("Error adding prize");
-      console.error(error);
-    } else {
-      alert("Prize added successfully!");
-      togglePrizes(giveawayId);
-      togglePrizes(giveawayId); // refresh view
-    }
+  async function deleteGiveaway(id: number) {
+    if (!confirm("Are you sure you want to delete this giveaway?")) return;
+    await supabase.from("giveaways").delete().eq("id", id);
+    fetchGiveaways();
   }
 
-  // Delete a prize
-  async function deletePrize(prizeId: string, giveawayId: string) {
-    if (!confirm("Delete this prize?")) return;
-    const { error } = await supabase.from("prizes").delete().eq("id", prizeId);
-    if (error) {
-      alert("Failed to delete");
-      console.error(error);
+  function openModal(giveaway?: any) {
+    if (giveaway) {
+      setEditing(giveaway);
+      setForm({
+        title: giveaway.title,
+        description: giveaway.description,
+        start_date: giveaway.start_date,
+        end_date: giveaway.end_date,
+      });
     } else {
-      setPrizes((prev) => ({
-        ...prev,
-        [giveawayId]: prev[giveawayId].filter((p) => p.id !== prizeId),
-      }));
+      setEditing(null);
+      setForm({ title: "", description: "", start_date: "", end_date: "" });
     }
-  }
-
-  // Edit a prize
-  async function editPrize(prize: any, giveawayId: string) {
-    const title = prompt("Edit title:", prize.title);
-    if (!title) return;
-
-    const description = prompt("Edit description:", prize.description || "");
-    const rank = parseInt(prompt("Edit rank:", prize.rank || "1"));
-
-    const { error } = await supabase
-      .from("prizes")
-      .update({ title, description, rank })
-      .eq("id", prize.id);
-
-    if (error) {
-      alert("Failed to update prize");
-      console.error(error);
-    } else {
-      setPrizes((prev) => ({
-        ...prev,
-        [giveawayId]: prev[giveawayId].map((p) =>
-          p.id === prize.id ? { ...p, title, description, rank } : p
-        ),
-      }));
-    }
+    setShowModal(true);
   }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-6 flex items-center">
-        <span>🎁 Giveaways & Prizes</span>
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold text-gray-800">
+          🎉 Giveaways Management
+        </h1>
+        <button
+          onClick={() => openModal()}
+          className="flex items-center bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
+        >
+          <PlusCircle className="w-5 h-5 mr-2" /> Add Giveaway
+        </button>
+      </div>
 
-      {loading && <p>Loading giveaways...</p>}
-
-      <div className="space-y-4">
-        {giveaways.map((giveaway) => (
-          <div
-            key={giveaway.id}
-            className="bg-white shadow rounded-2xl p-4 border border-gray-100"
-          >
-            {/* Giveaway header */}
-            <div className="flex justify-between items-center">
+      {loading ? (
+        <p>Loading giveaways...</p>
+      ) : giveaways.length === 0 ? (
+        <p className="text-gray-500">No giveaways yet. Create one to begin.</p>
+      ) : (
+        <div className="grid gap-4">
+          {giveaways.map((g) => (
+            <div
+              key={g.id}
+              className="bg-white p-4 rounded-xl shadow flex justify-between items-start"
+            >
               <div>
-                <h2 className="text-lg font-semibold">{giveaway.title}</h2>
-                <p className="text-gray-500 text-sm">
-                  {giveaway.description || "No description"}
+                <h2 className="text-lg font-medium text-gray-800">{g.title}</h2>
+                <p className="text-gray-500 text-sm mb-2">{g.description}</p>
+                <p className="text-xs text-gray-400">
+                  {new Date(g.start_date).toLocaleDateString()} →{" "}
+                  {new Date(g.end_date).toLocaleDateString()}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex gap-2">
                 <button
-                  onClick={() => addPrize(giveaway.id)}
-                  className="text-orange-500 hover:text-orange-600 flex items-center gap-1"
+                  onClick={() => openModal(g)}
+                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
+                  title="Edit"
                 >
-                  <PlusCircle size={18} /> Add Prize
+                  <Edit className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => togglePrizes(giveaway.id)}
-                  className="text-gray-600 hover:text-gray-800"
+                  onClick={() => deleteGiveaway(g.id)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  title="Delete"
                 >
-                  {expanded === giveaway.id ? (
-                    <ChevronDown size={20} />
-                  ) : (
-                    <ChevronRight size={20} />
-                  )}
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() =>
+                    (window.location.href = `/admin/prizes?giveaway_id=${g.id}`)
+                  }
+                  className="p-2 text-green-500 hover:bg-green-50 rounded-lg"
+                  title="View Prizes"
+                >
+                  <Gift className="w-5 h-5" />
                 </button>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Prize list */}
-            {expanded === giveaway.id && (
-              <div className="mt-4 border-t border-gray-100 pt-3 space-y-2">
-                {(!prizes[giveaway.id] || prizes[giveaway.id].length === 0) && (
-                  <p className="text-gray-500 text-sm">No prizes added yet.</p>
-                )}
+      {showModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
+            <h2 className="text-xl font-semibold mb-4">
+              {editing ? "Edit Giveaway" : "Add Giveaway"}
+            </h2>
+            <input
+              type="text"
+              placeholder="Title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="w-full mb-3 border px-3 py-2 rounded-lg"
+            />
+            <textarea
+              placeholder="Description"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="w-full mb-3 border px-3 py-2 rounded-lg"
+            />
+            <div className="flex gap-2 mb-3">
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) =>
+                  setForm({ ...form, start_date: e.target.value })
+                }
+                className="flex-1 border px-3 py-2 rounded-lg"
+              />
+              <input
+                type="date"
+                value={form.end_date}
+                onChange={(e) =>
+                  setForm({ ...form, end_date: e.target.value })
+                }
+                className="flex-1 border px-3 py-2 rounded-lg"
+              />
+            </div>
 
-                {prizes[giveaway.id]?.map((prize) => (
-                  <div
-                    key={prize.id}
-                    className="flex justify-between items-center bg-gray-50 rounded-lg p-2"
-                  >
-                    <div>
-                      <p className="font-medium">{prize.title}</p>
-                      <p className="text-sm text-gray-500">
-                        {prize.description || "—"} (Rank: {prize.rank})
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => editPrize(prize, giveaway.id)}
-                        className="text-blue-500 hover:text-blue-600"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => deletePrize(prize.id, giveaway.id)}
-                        className="text-red-500 hover:text-red-600"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveGiveaway}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+              >
+                {editing ? "Update" : "Save"}
+              </button>
+            </div>
           </div>
-        ))}
-
-        {giveaways.length === 0 && !loading && (
-          <p className="text-gray-500 text-sm">No giveaways found.</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default GiveawaysPage;
+}
