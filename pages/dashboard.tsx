@@ -1,10 +1,13 @@
 // pages/dashboard.tsx
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useUser } from "@supabase/auth-helpers-react";
 import { checkRoleAccess } from "@/lib/checkRoleAccess";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
+import ActivityFeed from "@/components/ActivityFeed";
 
 const DashboardPage: React.FC = () => {
   const router = useRouter();
@@ -35,52 +38,4 @@ const DashboardPage: React.FC = () => {
 
   if (!authorized) {
     return (
-      <div className="flex items-center justify-center h-screen text-red-500">
-        Access Denied
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar role={role} />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        <Topbar />
-
-        <main className="p-6 overflow-y-auto flex-1">
-          <h1 className="text-2xl font-semibold mb-4">
-            Welcome, {role ? role.charAt(0).toUpperCase() + role.slice(1) : "User"}!
-          </h1>
-
-          <p className="text-gray-600 mb-6">
-            This is your SolarizedNG dashboard overview. 
-            Your role determines what data and controls you can access.
-          </p>
-
-          {/* Placeholder panels (you’ll later connect these to live Supabase data) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <div className="p-6 bg-white rounded-2xl shadow">
-              <h2 className="text-lg font-medium mb-2">Overview</h2>
-              <p className="text-gray-500 text-sm">General system insights.</p>
-            </div>
-
-            <div className="p-6 bg-white rounded-2xl shadow">
-              <h2 className="text-lg font-medium mb-2">Recent Activity</h2>
-              <p className="text-gray-500 text-sm">Live updates from Supabase.</p>
-            </div>
-
-            <div className="p-6 bg-white rounded-2xl shadow">
-              <h2 className="text-lg font-medium mb-2">Stats</h2>
-              <p className="text-gray-500 text-sm">Analytics and charts.</p>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-};
-
-export default DashboardPage;
+      <div
