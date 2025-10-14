@@ -1,108 +1,58 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useState, useEffect } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 export default function AdminTestPanel() {
-  const [settings, setSettings] = useState({
-    show_banner: false,
-    maintenance_mode: false,
-    system_message: "",
-  });
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createClientComponentClient();
+  const [isMaintenance, setIsMaintenance] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const loadSettings = async () => {
-    const { data } = await supabase
-      .from("app_settings")
-      .select("key, value, value_text");
-    if (data) {
-      const mapped: any = {};
-      data.forEach((s) => {
-        mapped[s.key] = s.value ?? s.value_text;
-      });
-      setSettings({
-        show_banner: mapped.show_banner ?? false,
-        maintenance_mode: mapped.maintenance_mode ?? false,
-        system_message: mapped.system_message ?? "",
-      });
-    }
-  };
-
+  // Load current state
   useEffect(() => {
-    loadSettings();
-  }, []);
+    const fetchStatus = async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'maintenance_mode')
+        .single();
+      if (!error && data) {
+        setIsMaintenance(data.value);
+      }
+      setLoading(false);
+    };
+    fetchStatus();
+  }, [supabase]);
 
-  const toggleSetting = async (key: string) => {
-    const newValue = !settings[key as keyof typeof settings];
-    setSettings({ ...settings, [key]: newValue });
-    await supabase.from("app_settings").update({ value: newValue }).eq("key", key);
-  };
-
-  const updateMessage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newMessage = e.target.value;
-    setSettings({ ...settings, system_message: newMessage });
+  // Toggle state
+  const handleToggle = async (checked: boolean) => {
+    setIsMaintenance(checked);
     await supabase
-      .from("app_settings")
-      .update({ value_text: newMessage })
-      .eq("key", "system_message");
+      .from('app_settings')
+      .update({ value: checked })
+      .eq('key', 'maintenance_mode');
   };
 
-  return (
-    <div className="p-6 bg-gray-900 text-white rounded-2xl shadow-lg space-y-6">
-      <h2 className="text-xl font-semibold">Admin Test Panel</h2>
+  if (loading) return <p>Loading status…</p>;
 
-      {/* Toggle switches */}
-      <div className="space-y-4">
-        <ToggleRow
-          label="Show Live Sync Banner"
-          active={settings.show_banner}
-          onClick={() => toggleSetting("show_banner")}
-        />
-        <ToggleRow
-          label="Maintenance Mode"
-          active={settings.maintenance_mode}
-          onClick={() => toggleSetting("maintenance_mode")}
+  return (
+    <div className="p-6 max-w-md mx-auto bg-white dark:bg-neutral-900 rounded-2xl shadow-lg">
+      <h1 className="text-2xl font-semibold mb-4">🛠 Admin Test Panel</h1>
+      <div className="flex items-center justify-between">
+        <Label htmlFor="maintenance" className="text-lg">
+          Maintenance Mode
+        </Label>
+        <Switch
+          id="maintenance"
+          checked={isMaintenance}
+          onCheckedChange={handleToggle}
         />
       </div>
-
-      {/* Message field */}
-      <div className="mt-4">
-        <label className="block text-sm text-gray-400 mb-1">System Message</label>
-        <input
-          type="text"
-          value={settings.system_message}
-          onChange={updateMessage}
-          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          placeholder="Enter system-wide message"
-        />
-      </div>
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between border-t border-gray-700 pt-3">
-      <span>{label}</span>
-      <button
-        onClick={onClick}
-        className={`px-4 py-1 rounded-lg text-sm font-semibold transition ${
-          active ? "bg-emerald-600" : "bg-gray-700"
-        }`}
-      >
-        {active ? "ON" : "OFF"}
-      </button>
+      <p className="mt-3 text-sm text-gray-500">
+        When enabled, non-admin users will see the maintenance splash screen.
+      </p>
     </div>
   );
 }
