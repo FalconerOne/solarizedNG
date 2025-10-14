@@ -108,3 +108,39 @@ h1, h2, h3, h4 {
 .section-title {
   @apply text-lg font-semibold mb-2 text-gray-800;
 }
+/* --- SolarizedNG UI Polish Layer --- */
+html, body {
+  scroll-behavior: smooth;
+  background-color: #f9fafb;
+}
+
+/* Generic reusable card for dashboard blocks */
+.card {
+  @apply bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-4;
+}
+
+/* Buttons */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-xl font-semibold transition-all duration-200;
+}
+
+.btn-primary {
+  @apply bg-indigo-600 text-white hover:bg-indigo-700;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-800;
+}
+
+/* Tags / Badges */
+.tag {
+  @apply text-xs font-medium px-2 py-1 rounded-full;
+}
+
+.tag-active {
+  @apply bg-green-100 text-green-700;
+}
+
+.tag-inactive {
+  @apply bg-red-100 text-red-700;
+}
