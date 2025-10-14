@@ -16,6 +16,9 @@ export default function LeaderboardPage() {
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 🌀 Optional: randomize visible users for unactivated or guest views
+  const shuffle = (array: any[]) => array.sort(() => Math.random() - 0.5);
+
   // 🟠 1️⃣ Fetch current session user
   useEffect(() => {
     const fetchUser = async () => {
@@ -47,15 +50,21 @@ export default function LeaderboardPage() {
 
       // ⚙️ Apply Participation Visibility Rule
       if (!sessionUser) {
-        // Guest view — capped
+        // Guest view — capped and randomized
         query = query.limit(60);
       } else if (sessionUser.role !== "admin" && !sessionUser.activated) {
-        // Unactivated user — capped and shuffled for balance
+        // Unactivated user — capped and shuffled for engagement balance
         query = query.limit(60);
       }
 
       const { data, error } = await query;
-      if (!error && data) setUsers(data);
+      if (!error && data) {
+        const randomized =
+          !sessionUser || (!sessionUser.activated && sessionUser.role !== "admin")
+            ? shuffle([...data])
+            : data;
+        setUsers(randomized);
+      }
       setLoading(false);
     };
 
@@ -103,10 +112,5 @@ export default function LeaderboardPage() {
       {/* 🧩 Optional visual cue for capped users */}
       {sessionUser && !sessionUser.activated && (
         <p className="mt-4 text-sm text-gray-500 text-center italic">
-          You’re viewing a limited leaderboard. Activate your account to see
-          all participants.
-        </p>
-      )}
-    </div>
-  );
-}
+          You’re viewing a limited leaderboard. Activate your account to see all
+          participants.
