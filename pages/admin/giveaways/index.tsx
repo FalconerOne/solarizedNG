@@ -2,12 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Pencil, Trash2, ToggleLeft, ToggleRight, PlusCircle } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  PlusCircle,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminGiveaways() {
   const supabase = createClientComponentClient();
+  const { toast } = useToast();
+
   const [giveaways, setGiveaways] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -18,7 +38,6 @@ export default function AdminGiveaways() {
   });
   const [loading, setLoading] = useState(false);
 
-  // Load giveaways
   useEffect(() => {
     fetchGiveaways();
   }, []);
@@ -33,8 +52,7 @@ export default function AdminGiveaways() {
     setLoading(false);
   }
 
-  // Handle form input
-  function handleChange(e) {
+  function handleChange(e: any) {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -42,27 +60,29 @@ export default function AdminGiveaways() {
     }));
   }
 
-  // Save or update
-  async function handleSubmit(e) {
+  async function handleSubmit(e: any) {
     e.preventDefault();
     setLoading(true);
 
-    if (editing) {
-      const { error } = await supabase
-        .from("giveaways")
-        .update(formData)
-        .eq("id", editing.id);
-      if (!error) {
-        setEditing(null);
-        resetForm();
-        fetchGiveaways();
-      }
+    const isEditing = !!editing;
+    const { error } = isEditing
+      ? await supabase.from("giveaways").update(formData).eq("id", editing.id)
+      : await supabase.from("giveaways").insert([formData]);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     } else {
-      const { error } = await supabase.from("giveaways").insert([formData]);
-      if (!error) {
-        resetForm();
-        fetchGiveaways();
-      }
+      toast({
+        title: isEditing ? "Giveaway updated!" : "Giveaway added!",
+        description: "Your changes have been saved successfully.",
+      });
+      resetForm();
+      setEditing(null);
+      fetchGiveaways();
     }
 
     setLoading(false);
@@ -79,27 +99,50 @@ export default function AdminGiveaways() {
     });
   }
 
-  // Edit
-  function handleEdit(item) {
+  function handleEdit(item: any) {
     setEditing(item);
     setFormData(item);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // Delete
-  async function handleDelete(id) {
-    if (!confirm("Are you sure you want to delete this giveaway?")) return;
-    const { error } = await supabase.from("giveaways").delete().eq("id", id);
-    if (!error) fetchGiveaways();
+  async function handleDeleteConfirmed() {
+    if (!deleteId) return;
+    const { error } = await supabase.from("giveaways").delete().eq("id", deleteId);
+    if (error) {
+      toast({
+        title: "Error deleting giveaway",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Deleted",
+        description: "Giveaway removed successfully.",
+      });
+      fetchGiveaways();
+    }
+    setDeleteId(null);
   }
 
-  // Toggle active
-  async function toggleActive(item) {
+  async function toggleActive(item: any) {
     const { error } = await supabase
       .from("giveaways")
       .update({ active: !item.active })
       .eq("id", item.id);
-    if (!error) fetchGiveaways();
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Status updated",
+        description: `${item.title} is now ${item.active ? "inactive" : "active"}.`,
+      });
+      fetchGiveaways();
+    }
   }
 
   return (
@@ -111,7 +154,8 @@ export default function AdminGiveaways() {
         onSubmit={handleSubmit}
         className="bg-white p-6 rounded-xl shadow space-y-4 max-w-2xl"
       >
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <PlusCircle className="w-5 h-5" />
           {editing ? "Edit Giveaway" : "Create New Giveaway"}
         </h2>
 
@@ -167,26 +211,24 @@ export default function AdminGiveaways() {
           Active
         </label>
 
-        <button
-          type="submit"
-          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
-          disabled={loading}
-        >
-          {loading ? "Saving..." : editing ? "Update Giveaway" : "Add Giveaway"}
-        </button>
+        <div className="flex gap-3">
+          <Button type="submit" disabled={loading}>
+            {loading ? "Saving..." : editing ? "Update Giveaway" : "Add Giveaway"}
+          </Button>
 
-        {editing && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              resetForm();
-            }}
-            className="ml-2 px-4 py-2 bg-gray-300 rounded-lg"
-          >
-            Cancel
-          </button>
-        )}
+          {editing && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
       </form>
 
       {/* Giveaways Table */}
@@ -207,7 +249,7 @@ export default function AdminGiveaways() {
               </tr>
             </thead>
             <tbody>
-              {giveaways.map((g) => (
+              {giveaways.map((g: any) => (
                 <tr key={g.id} className="border-b hover:bg-gray-50">
                   <td className="p-2">{g.title}</td>
                   <td className="p-2">{g.prize}</td>
@@ -238,7 +280,7 @@ export default function AdminGiveaways() {
                       )}
                     </button>
                     <button
-                      onClick={() => handleDelete(g.id)}
+                      onClick={() => setDeleteId(g.id)}
                       className="p-2 hover:bg-gray-200 rounded text-red-500"
                       title="Delete"
                     >
@@ -251,6 +293,24 @@ export default function AdminGiveaways() {
           </table>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Giveaway?</DialogTitle>
+          </DialogHeader>
+          <p>This action cannot be undone. Are you sure you want to continue?</p>
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button variant="secondary" onClick={() => setDeleteId(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirmed}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
