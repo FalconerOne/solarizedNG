@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- Global UI polish --- */
+body {
+  @apply font-inter text-gray-800 bg-gray-100 antialiased;
+}
+
+h1, h2, h3, h4 {
+  @apply font-semibold text-gray-900;
+}
+
+a {
+  @apply text-blue-600 hover:text-blue-700;
+}
