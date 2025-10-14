@@ -18,6 +18,8 @@ const DashboardPage: React.FC = () => {
   const [role, setRole] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [logMessage, setLogMessage] = useState<string>("");
+  const [clearing, setClearing] = useState(false);
+  const [clearMsg, setClearMsg] = useState<string | null>(null);
 
   // Verify access
   useEffect(() => {
@@ -31,7 +33,7 @@ const DashboardPage: React.FC = () => {
     verifyAccess();
   }, [router]);
 
-  // Simple helper for logging
+  // Add new test log
   async function logActivity() {
     if (!user) {
       alert("No user session found");
@@ -54,9 +56,24 @@ const DashboardPage: React.FC = () => {
       console.error("Error logging activity:", error);
       alert("Failed to log activity");
     } else {
-      alert("Activity logged successfully!");
+      alert("✅ Activity logged successfully!");
       setLogMessage("");
     }
+  }
+
+  // Admin: Clear test logs
+  async function clearTestLogs() {
+    if (!confirm("Are you sure you want to clear test logs?")) return;
+    setClearing(true);
+    setClearMsg(null);
+    const { error } = await supabase.from("activity_log").delete().neq("id", "");
+    if (error) {
+      console.error("Error clearing logs:", error);
+      setClearMsg("❌ Failed to clear logs.");
+    } else {
+      setClearMsg("✅ All test logs cleared successfully.");
+    }
+    setClearing(false);
   }
 
   if (authorized === null) {
@@ -114,7 +131,28 @@ const DashboardPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Activity Feed placeholder */}
+          {/* Admin-only Clear Logs */}
+          {role === "admin" && (
+            <div className="mb-8 p-4 bg-white shadow rounded-xl">
+              <h2 className="text-lg font-semibold mb-3 text-gray-800">
+                Admin Tools
+              </h2>
+              <button
+                onClick={clearTestLogs}
+                disabled={clearing}
+                className={`px-4 py-2 rounded-lg text-white font-medium ${
+                  clearing ? "bg-gray-400" : "bg-red-500 hover:bg-red-600"
+                }`}
+              >
+                {clearing ? "Clearing..." : "🧹 Clear Test Logs"}
+              </button>
+              {clearMsg && (
+                <p className="mt-2 text-sm text-gray-600">{clearMsg}</p>
+              )}
+            </div>
+          )}
+
+          {/* Activity Feed */}
           <ActivityFeed />
         </main>
       </div>
