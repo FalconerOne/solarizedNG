@@ -7,7 +7,8 @@ import ScrollToTop from "@/components/ScrollToTop";
 import ReminderBanner from "@/components/ReminderBanner";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { ToastWrapper } from "@/components/ui/toast"; // ✅ added toast wrapper
+import { ToastWrapper } from "@/components/ui/toast";
+import MaintenancePreviewBanner from "@/components/MaintenancePreviewBanner"; // ✅ added
 
 export default function App({ Component, pageProps }: AppProps) {
   // ✅ Optional: refresh session silently
@@ -20,6 +21,9 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <ToastWrapper>
+      {/* ✅ Global Maintenance Preview Ribbon */}
+      <MaintenancePreviewBanner />
+
       <main className="min-h-screen flex flex-col bg-gray-50 font-[Segoe_UI]">
         <ReminderBanner />
         <Header />
