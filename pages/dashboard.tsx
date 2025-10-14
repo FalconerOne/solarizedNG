@@ -1,38 +1,23 @@
-import { GetServerSideProps } from "next";
-import { requireAuth } from "../lib/requireAuth";
-import { supabase } from "../lib/supabaseClient";
-import Link from "next/link";
+// pages/dashboard.tsx
+import Sidebar from "@/components/Sidebar";
+import Topbar from "@/components/Topbar";
 
-export const getServerSideProps: GetServerSideProps = requireAuth;
-
-export default function Dashboard({ user }: any) {
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/";
-  }
-
+export default function Dashboard() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-center">
-      <h1 className="text-3xl font-bold text-gray-800 mb-4">
-        Welcome, {user?.email || "User"} 👋
-      </h1>
-      <p className="text-gray-600 mb-6">You are successfully logged in.</p>
+    <div className="min-h-screen flex bg-orange-50">
+      <Sidebar />
+      <main className="flex-1 p-6 overflow-y-auto">
+        <Topbar />
 
-      <div className="space-x-4">
-        <Link
-          href="/leaderboard"
-          className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Go to Leaderboard
-        </Link>
-
-        <button
-          onClick={handleLogout}
-          className="px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-        >
-          Logout
-        </button>
-      </div>
+        <section className="animate-fadeSlideIn">
+          <h1 className="text-3xl font-semibold mb-4 text-gray-800">
+            Welcome to SolarizedNG Dashboard
+          </h1>
+          <p className="text-gray-600">
+            Your modular overview panel with live Supabase data.
+          </p>
+        </section>
+      </main>
     </div>
   );
 }
