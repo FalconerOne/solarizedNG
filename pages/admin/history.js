@@ -1,4 +1,3 @@
-// pages/api/admin/history.js
 import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req, res) {
@@ -6,7 +5,8 @@ export default async function handler(req, res) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !key) {
-    return res.status(500).json({ error: "Missing Supabase environment vars" });
+    res.status(500).json({ error: "Missing Supabase environment variables" });
+    return;
   }
 
   const supabase = createClient(url, key);
@@ -16,27 +16,22 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
-        .eq("type", "broadcast")
         .order("created_at", { ascending: false })
         .limit(50);
-
       if (error) throw error;
-      return res.status(200).json(data || []);
-    }
-
-    if (req.method === "DELETE") {
+      res.status(200).json(data || []);
+    } else if (req.method === "DELETE") {
       const { id } = req.query;
-      if (!id) return res.status(400).json({ error: "Missing ID" });
-
+      if (!id) return res.status(400).json({ error: "Missing id" });
       const { error } = await supabase.from("notifications").delete().eq("id", id);
       if (error) throw error;
-
-      return res.status(200).json({ success: true });
+      res.status(200).json({ success: true });
+    } else {
+      res.setHeader("Allow", ["GET", "DELETE"]);
+      res.status(405).end(`Method ${req.method} Not Allowed`);
     }
-
-    return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
-    console.error("History API error:", err.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    console.error("Error in /api/admin/history:", err);
+    res.status(500).json({ error: err.message });
   }
 }
