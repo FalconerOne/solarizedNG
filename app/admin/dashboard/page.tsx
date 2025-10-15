@@ -1,86 +1,139 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { Card, CardContent } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from "recharts";
 
-export default function Dashboard() {
-  const [metrics, setMetrics] = useState<any>(null)
-  const supabase = createClient()
+export default function AdminDashboardPage() {
+  const [topUsers, setTopUsers] = useState<any[]>([]);
+  const [topGiveaways, setTopGiveaways] = useState<any[]>([]);
+  const [trends, setTrends] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch metrics initially
-  useEffect(() => {
-    fetchAnalytics()
-  }, [])
+  // Function to fetch all dashboard data
+  async function fetchDashboardData() {
+    setLoading(true);
 
-  // Subscribe to real-time changes
-  useEffect(() => {
-    const channel = supabase
-      .channel('realtime-admin-analytics')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'admin_analytics',
-        },
-        (payload) => {
-          console.log('📊 Analytics updated:', payload)
-          fetchAnalytics() // Re-fetch latest metrics
-        }
-      )
-      .subscribe()
+    try {
+      // Top 10 users by total engagement (likes + referrals)
+      const { data: users } = await supabase.rpc("get_top_users");
+      setTopUsers(users || []);
 
-    // Cleanup on component unmount
-    return () => {
-      supabase.removeChannel(channel)
+      // Top 5 giveaways by total participation
+      const { data: giveaways } = await supabase
+        .from("giveaways")
+        .select("id, title")
+        .limit(5);
+
+      const topGiveawaysWithCounts = await Promise.all(
+        (giveaways || []).map(async (g) => {
+          const { count } = await supabase
+            .from("giveaway_participants")
+            .select("*", { count: "exact", head: true })
+            .eq("giveaway_id", g.id);
+          return { ...g, participants: count || 0 };
+        })
+      );
+
+      setTopGiveaways(topGiveawaysWithCounts);
+
+      // Engagement trends (last 7 days)
+      const { data: trendData } = await supabase.rpc("get_engagement_trends");
+      setTrends(trendData || []);
+    } catch (error) {
+      console.error(error);
     }
-  }, [])
 
-  // Function to load analytics from Supabase
-  async function fetchAnalytics() {
-    const { data, error } = await supabase.from('admin_analytics').select('*')
-    if (!error) {
-      const mapped = Object.fromEntries(data.map((m) => [m.metric, m.count]))
-      setMetrics(mapped)
-    } else {
-      console.error('Analytics fetch error:', error)
-    }
+    setLoading(false);
+  }
+
+  // Auto-refresh every 30s
+  useEffect(() => {
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="animate-spin w-8 h-8 text-indigo-500" />
+      </div>
+    );
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-semibold mb-4">Admin Dashboard</h2>
+    <div className="p-6 space-y-8">
+      <h1 className="text-3xl font-bold text-gray-800 mb-4">
+        🏆 Admin Live Dashboard
+      </h1>
 
-      {metrics ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 border rounded bg-white shadow">
-            <h4 className="text-sm text-gray-600">Total About Edits</h4>
-            <p className="text-2xl font-bold text-blue-700">
-              {metrics.about_edits_total}
-            </p>
-          </div>
-          <div className="p-4 border rounded bg-white shadow">
-            <h4 className="text-sm text-gray-600">Mission Edits</h4>
-            <p className="text-2xl font-bold text-green-700">
-              {metrics.mission_edits}
-            </p>
-          </div>
-          <div className="p-4 border rounded bg-white shadow">
-            <h4 className="text-sm text-gray-600">Team Edits</h4>
-            <p className="text-2xl font-bold text-amber-700">
-              {metrics.team_edits}
-            </p>
-          </div>
-          <div className="p-4 border rounded bg-white shadow">
-            <h4 className="text-sm text-gray-600">Timeline Edits</h4>
-            <p className="text-2xl font-bold text-purple-700">
-              {metrics.timeline_edits}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <p className="text-gray-500">Loading analytics...</p>
-      )}
+      {/* Top Users */}
+      <Card className="p-4 bg-white shadow-md">
+        <CardContent>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Top 10 Participants (Referrals + Likes)
+          </h2>
+          <ul className="space-y-2 text-sm text-gray-700">
+            {topUsers.length === 0 && <li>No active participants yet.</li>}
+            {topUsers.map((user, i) => (
+              <li key={i} className="flex justify-between border-b py-1">
+                <span>
+                  {i + 1}. {user.name || "Anonymous"} ({user.state})
+                </span>
+                <span className="font-medium text-indigo-600">
+                  {user.engagement_score} pts
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* Top Giveaways */}
+      <Card className="p-4 bg-white shadow-md">
+        <CardContent>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Most Active Giveaways
+          </h2>
+          <ul className="space-y-2 text-sm text-gray-700">
+            {topGiveaways.length === 0 && <li>No giveaways found.</li>}
+            {topGiveaways.map((g, i) => (
+              <li key={i} className="flex justify-between border-b py-1">
+                <span>
+                  {i + 1}. {g.title}
+                </span>
+                <span className="font-medium text-indigo-600">
+                  {g.participants} participants
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* Engagement Trends */}
+      <Card className="p-4 bg-white shadow-md">
+        <CardContent>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Weekly Engagement Trend
+          </h2>
+
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={trends}>
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="referrals" stroke="#4f46e5" name="Referrals" />
+              <Line type="monotone" dataKey="likes" stroke="#ec4899" name="Likes" />
+              <Line type="monotone" dataKey="participants" stroke="#10b981" name="Participants" />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
-  )
+  );
 }
