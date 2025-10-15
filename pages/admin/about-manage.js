@@ -2,6 +2,7 @@
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MissionEditor from "@/components/about/MissionEditor";
 import Head from "next/head";
+import TimelineEditor from "@/components/about/TimelineEditor";
 
 export default function AboutManagePage() {
   return (
@@ -22,6 +23,8 @@ export default function AboutManagePage() {
             
             <div className="mt-10">
   <TeamEditor />
+            <div className="mt-10">
+  <TimelineEditor />
 </div>
 
           {/* Future Sections */}
