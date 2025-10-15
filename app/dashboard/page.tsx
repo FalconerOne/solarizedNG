@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 // 🧩 Components
@@ -10,6 +11,7 @@ import PointsDisplay from "@/components/dashboard/PointsDisplay";
 import ReferralsPanel from "@/components/dashboard/ReferralsPanel";
 import PrizeClaimPanel from "@/components/dashboard/PrizeClaimPanel";
 import LeaderboardEnhanced from "@/components/dashboard/LeaderboardEnhanced";
+import AdminTrueCounts from "@/components/dashboard/AdminTrueCounts";
 
 interface Ad {
   id: string;
@@ -30,24 +32,35 @@ export default function DashboardPage() {
   const [activeAd, setActiveAd] = useState<Ad | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [username, setUsername] = useState<string>("User");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
-  // ✅ Fetch user name + ads + activity logs
+  // ✅ Fetch user info, ads, and logs
   useEffect(() => {
     const fetchDashboardData = async () => {
-      // Get user session
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       const userId = session?.user?.id;
+      const userEmail = session?.user?.email;
 
-      // Fetch user profile
+      // ✅ Check admin (temporary rule: by email)
+      if (
+        userEmail &&
+        (userEmail.endsWith("@solarizesolutions.com.ng") ||
+          userEmail.endsWith("@falconerone.com"))
+      ) {
+        setIsAdmin(true);
+      }
+
+      // Fetch username
       if (userId) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("username")
           .eq("id", userId)
           .single();
+
         if (profile?.username) setUsername(profile.username);
       }
 
@@ -63,7 +76,7 @@ export default function DashboardPage() {
         setActiveAd(randomAd);
       }
 
-      // Fetch recent activity log (limit to 5)
+      // Fetch activity logs (limit to 5)
       if (userId) {
         const { data: actData } = await supabase
           .from("activity_log")
@@ -81,7 +94,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 to-white py-10 px-6">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         {/* 🧡 Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -138,7 +151,7 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* 🏆 Leaderboard Section */}
+        {/* 🏆 Leaderboard */}
         <LeaderboardEnhanced />
 
         {/* 🤝 Referrals */}
@@ -177,6 +190,47 @@ export default function DashboardPage() {
             </p>
           )}
         </motion.div>
+
+        {/* 🧭 ADMIN DASHBOARD SECTION */}
+        {isAdmin && (
+          <motion.section
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            className="bg-orange-100 border border-orange-300 rounded-2xl shadow-lg p-6 mt-10"
+          >
+            <h2 className="text-2xl font-bold text-orange-700 mb-4 flex items-center gap-2">
+              🛠️ Admin Controls
+            </h2>
+
+            <AdminTrueCounts />
+
+            <div className="grid sm:grid-cols-3 gap-4 mt-6">
+              <Link
+                href="/admin/ads"
+                className="bg-orange-500 hover:bg-orange-600 text-white text-center py-3 rounded-xl shadow transition"
+              >
+                Manage Ads
+              </Link>
+              <Link
+                href="/admin/activity"
+                className="bg-white border border-orange-400 text-orange-600 text-center py-3 rounded-xl shadow hover:bg-orange-50 transition"
+              >
+                Activity Summary
+              </Link>
+              <Link
+                href="/admin/maintenance"
+                className="bg-orange-500 hover:bg-orange-600 text-white text-center py-3 rounded-xl shadow transition"
+              >
+                Maintenance Mode
+              </Link>
+            </div>
+
+            <p className="text-xs text-gray-600 mt-4 text-center italic">
+              (Admin controls are visible only to authorized Solarize staff)
+            </p>
+          </motion.section>
+        )}
       </div>
     </main>
   );
