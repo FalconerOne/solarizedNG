@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { notifyAdminOnJoin } from "@/lib/notifyAdminOnJoin";
 import {
   Dialog,
   DialogContent,
@@ -44,13 +45,22 @@ export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: a
       }
 
       // Record participation
-      const { error: insertError } = await supabase.from("giveaway_participants").insert([
-        {
-          giveaway_id: giveaway.id,
-          user_id: userId,
-          joined_at: new Date().toISOString(),
-        },
-      ]);
+const { error: insertError } = await supabase.from("giveaway_participants").insert([
+  {
+    giveaway_id: giveaway.id,
+    user_id: userId,
+    joined_at: new Date().toISOString(),
+  },
+]);
+
+if (insertError) throw insertError;
+
+// ✅ Notify admins in real time
+await notifyAdminOnJoin(giveaway.id, userId);
+
+      // ✅ Notify admins in real time
+await notifyAdminOnJoin(giveaway.id, userId);
+
 
       if (insertError) throw insertError;
 
