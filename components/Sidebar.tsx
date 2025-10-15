@@ -22,15 +22,14 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   // 💡 Define sidebar links by role
   const linksByRole: Record<string, { name: string; path: string; icon: any }[]> = {
     admin: [
-      { name: "Overview", path: "/dashboard", icon: Home },
-      { name: "Stats", path: "/stats", icon: BarChart2 },
-      { name: "Activity", path: "/activity", icon: Activity },
-      { name: "Notifications", path: "/notifications", icon: Bell },
-      { name: "Users", path: "/admin/users", icon: Users },
-      // 🆕 Added "About Management"
-      { name: "About Management", path: "/admin/about", icon: Info },
-      { name: "Settings", path: "/settings", icon: Settings },
-    ],
+  { name: "Overview", path: "/dashboard", icon: Home },
+  { name: "Stats", path: "/stats", icon: BarChart2 },
+  { name: "Activity", path: "/activity", icon: Activity },
+  { name: "Notifications", path: "/notifications", icon: Bell },
+  { name: "Users", path: "/admin/users", icon: Users },
+  { name: "About Management", path: "/admin/about", icon: Settings },
+  { name: "Settings", path: "/settings", icon: Settings },
+],
     supervisor: [
       { name: "Overview", path: "/dashboard", icon: Home },
       { name: "Activity", path: "/activity", icon: Activity },
