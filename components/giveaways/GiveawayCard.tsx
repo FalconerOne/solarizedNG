@@ -26,20 +26,11 @@ export default function GiveawayCard({ giveaway, userId }: any) {
         </div>
 
         {giveaway.media_url && (
-          <div className="mt-3">
-            {giveaway.media_url.endsWith(".mp4") ? (
-              <video
-                src={giveaway.media_url}
-                controls
-                className="w-full rounded-xl border border-gray-200"
-              />
-            ) : (
-              <img
-                src={giveaway.media_url}
-                alt={giveaway.title}
-                className="w-full h-48 object-cover rounded-xl border border-gray-200"
-              />
-            )}
+  <div className="mt-3">
+    <PrizePreview mediaUrl={giveaway.media_url} title={giveaway.title} />
+  </div>
+)}
+
           </div>
         )}
       </CardContent>
