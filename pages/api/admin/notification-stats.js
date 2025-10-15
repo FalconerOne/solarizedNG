@@ -1,9 +1,10 @@
 // pages/api/admin/notification-stats.js
-const { createClient } = require("@supabase/supabase-js");
+import { createClient } from "@supabase/supabase-js";
 
-module.exports = async function handler(req, res) {
-  if (req.method !== "GET")
+export default async function handler(req, res) {
+  if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -22,14 +23,18 @@ module.exports = async function handler(req, res) {
     const latest = data[0]?.created_at || null;
     const segments = {};
 
-    data.forEach((n) => {
-      if (!segments[n.segment]) segments[n.segment] = 0;
-      segments[n.segment] += n.recipient_count || 0;
-    });
+    for (const row of data) {
+      if (!segments[row.segment]) segments[row.segment] = 0;
+      segments[row.segment] += row.recipient_count || 0;
+    }
 
-    return res.status(200).json({ total, latest, segments });
+    return res.status(200).json({
+      total,
+      latest,
+      segments,
+    });
   } catch (err) {
-    console.error("Stats error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Stats API error:", err.message);
+    return res.status(500).json({ error: err.message });
   }
-};
+}
