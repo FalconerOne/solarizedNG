@@ -9,6 +9,7 @@ import {
   Activity,
   Bell,
   Users,
+  Info, // 🆕 added icon
 } from "lucide-react";
 
 interface SidebarProps {
@@ -26,6 +27,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
       { name: "Activity", path: "/activity", icon: Activity },
       { name: "Notifications", path: "/notifications", icon: Bell },
       { name: "Users", path: "/admin/users", icon: Users },
+      // 🆕 Added "About Management"
+      { name: "About Management", path: "/admin/about", icon: Info },
       { name: "Settings", path: "/settings", icon: Settings },
     ],
     supervisor: [
@@ -63,21 +66,3 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                   href={path}
                   className={`flex items-center gap-3 px-5 py-2.5 rounded-lg transition-colors ${
                     active
-                      ? "bg-orange-500 text-white"
-                      : "text-gray-700 dark:text-gray-300 hover:bg-orange-100 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    </aside>
-  );
-};
-
-export default Sidebar;
-`
