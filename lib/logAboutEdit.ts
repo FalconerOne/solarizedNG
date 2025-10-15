@@ -1,5 +1,6 @@
 // lib/logAboutEdit.ts
 import { createClient } from '@/utils/supabase/server'
+import { updateAnalyticsOnAboutEdit } from './updateAnalyticsOnAboutEdit'
 
 export async function logAboutEdit({
   userId,
@@ -12,6 +13,7 @@ export async function logAboutEdit({
 }) {
   const supabase = createClient()
 
+  // Log activity entry
   const { error } = await supabase.from('admin_activity').insert([
     {
       user_id: userId,
@@ -22,5 +24,10 @@ export async function logAboutEdit({
     },
   ])
 
-  if (error) console.error('Activity log error:', error)
+  if (error) {
+    console.error('Activity log error:', error)
+  } else {
+    // Trigger analytics increment
+    await updateAnalyticsOnAboutEdit(section)
+  }
 }
