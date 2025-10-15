@@ -1,104 +1,74 @@
+// pages/admin/notifications.js
 import React, { useState, useEffect } from "react";
-import { Send, Loader2, Trash2 } from "lucide-react";
+import { Send, Loader2, Trash2, RefreshCw } from "lucide-react";
 
 export default function AdminNotifications() {
-  const [activeTab, setActiveTab] = useState("broadcast");
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [segment, setSegment] = useState("all");
   const [sending, setSending] = useState(false);
   const [response, setResponse] = useState(null);
   const [history, setHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [segment, setSegment] = useState("all");
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
-  async function fetchHistory() {
-    try {
-      setLoadingHistory(true);
-      const res = await fetch("/api/admin/history");
-      const data = await res.json();
-      if (res.ok) setHistory(data);
-    } catch (e) {
-      console.error("Failed to load history", e);
-    } finally {
-      setLoadingHistory(false);
-    }
-  }
+  // 🧩 Load broadcast history
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    const res = await fetch("/api/admin/history");
+    const data = await res.json();
+    setHistory(data || []);
+    setLoadingHistory(false);
+  };
 
   useEffect(() => {
-    if (activeTab === "history") fetchHistory();
-  }, [activeTab]);
+    fetchHistory();
+  }, []);
 
-  async function handleBroadcast(e) {
+  // 🚀 Broadcast sender
+  const handleBroadcast = async (e) => {
     e.preventDefault();
-    if (!title || !message) return alert("Enter both title and message");
     setSending(true);
     setResponse(null);
 
-    try {
-      const res = await fetch("/api/admin/broadcast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, message, segment }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setResponse({ ok: true, text: `✅ Sent to ${data.count || 0} ${segment} users` });
-        setTitle("");
-        setMessage("");
-        fetchHistory();
-      } else {
-        setResponse({ ok: false, text: `❌ ${data.error || "Broadcast failed"}` });
-      }
-    } catch (err) {
-      setResponse({ ok: false, text: "⚠️ Network error" });
-    }
-    setSending(false);
-  }
+    const res = await fetch("/api/admin/broadcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, message, segment }),
+    });
 
-  async function handleDelete(id) {
-    if (!confirm("Delete this broadcast?")) return;
-    const res = await fetch(`/api/admin/history?id=${id}`, { method: "DELETE" });
+    const data = await res.json();
     if (res.ok) {
-      setHistory((prev) => prev.filter((h) => h.id !== id));
+      setResponse({ ok: true, text: `✅ Sent to ${data.count} ${segment} users.` });
+      setTitle("");
+      setMessage("");
+      fetchHistory();
+    } else {
+      setResponse({ ok: false, text: data.error || "Broadcast failed." });
     }
-  }
+
+    setSending(false);
+  };
+
+  // 🗑️ Delete history item
+  const deleteItem = async (id) => {
+    if (!confirm("Delete this broadcast?")) return;
+    await fetch(`/api/admin/history?id=${id}`, { method: "DELETE" });
+    fetchHistory();
+  };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Admin Notifications</h1>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-semibold mb-4">📢 Admin Broadcasts</h1>
 
-      {/* Tabs */}
-      <div className="flex gap-3 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab("broadcast")}
-          className={`px-4 py-2 border-b-2 ${
-            activeTab === "broadcast"
-              ? "border-orange-500 text-orange-600"
-              : "border-transparent text-gray-500"
-          }`}
-        >
-          Broadcast
-        </button>
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`px-4 py-2 border-b-2 ${
-            activeTab === "history"
-              ? "border-orange-500 text-orange-600"
-              : "border-transparent text-gray-500"
-          }`}
-        >
-          History
-        </button>
-      </div>
-
-      {activeTab === "broadcast" ? (
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 mb-6">
         <form onSubmit={handleBroadcast} className="space-y-4">
+          {/* 🎯 Segment selector */}
           <div>
             <label className="block text-sm font-medium mb-1">Send To</label>
             <select
               value={segment}
               onChange={(e) => setSegment(e.target.value)}
-              className="border p-2 rounded w-full"
+              className="border p-2 rounded w-full dark:bg-gray-800"
             >
               <option value="all">All Users</option>
               <option value="activated">Activated Users</option>
@@ -111,19 +81,21 @@ export default function AdminNotifications() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Broadcast title"
-            className="w-full border p-2 rounded"
+            className="w-full border p-2 rounded dark:bg-gray-800"
+            required
           />
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Message"
             rows={4}
-            className="w-full border p-2 rounded"
+            className="w-full border p-2 rounded dark:bg-gray-800"
+            required
           />
           <button
             type="submit"
             disabled={sending}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded"
+            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {sending ? "Sending..." : "Broadcast"}
@@ -134,7 +106,20 @@ export default function AdminNotifications() {
             </p>
           )}
         </form>
-      ) : (
-        <div>
-          {loadingHistory ? (
-            <p>Loadi
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-medium">📜 Broadcast History</h2>
+          <button
+            onClick={fetchHistory}
+            className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+        </div>
+
+        {loadingHistory ? (
+          <p className="text-gray-500">Loading...</p>
+        ) : history.length === 0 ? (
+          <p className="text-gray-500">No broadcasts yet.</p>
