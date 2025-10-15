@@ -19,6 +19,10 @@ export default function AboutManagePage() {
 
           {/* Mission Editor */}
           <MissionEditor />
+            
+            <div className="mt-10">
+  <TeamEditor />
+</div>
 
           {/* Future Sections */}
           <div className="mt-10 opacity-60">
