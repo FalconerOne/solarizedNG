@@ -5,6 +5,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// === Composite Fetcher (for admin page preload) ===
+export async function getAboutData() {
+  const { data: mission } = await supabase.from("about_content").select("*").single();
+  const { data: team } = await supabase.from("team_members").select("*").order("id");
+  const { data: milestones } = await supabase.from("milestones").select("*").order("year");
+  return { mission, team, milestones };
+}
+
 // --- Mission ---
 export async function getMission() {
   const { data } = await supabase.from("about_content").select("*").single();
