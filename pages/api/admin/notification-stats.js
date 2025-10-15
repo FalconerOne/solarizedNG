@@ -2,33 +2,34 @@
 const { createClient } = require("@supabase/supabase-js");
 
 module.exports = async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method not allowed" });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabase = createClient(url, key);
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   try {
     const { data, error } = await supabase
       .from("notifications")
-      .select("segment, recipient_count, created_at")
-      .eq("type", "broadcast")
+      .select("segment, created_at, recipient_count")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    if (!data || data.length === 0) return res.status(200).json({ total: 0, segments: {}, latest: null });
 
     const total = data.length;
-    const segments = data.reduce((acc, row) => {
-      acc[row.segment] = (acc[row.segment] || 0) + row.recipient_count;
-      return acc;
-    }, {});
+    const latest = data[0]?.created_at || null;
+    const segments = {};
 
-    const latest = data[0]?.created_at;
+    data.forEach((n) => {
+      if (!segments[n.segment]) segments[n.segment] = 0;
+      segments[n.segment] += n.recipient_count || 0;
+    });
 
-    res.status(200).json({ total, segments, latest });
+    return res.status(200).json({ total, latest, segments });
   } catch (err) {
-    console.error("notification-stats error:", err.message);
+    console.error("Stats error:", err);
     res.status(500).json({ error: err.message });
   }
 };
