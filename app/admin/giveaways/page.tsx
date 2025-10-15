@@ -1,200 +1,168 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Upload, Trash, Edit3, Eye, EyeOff, Video, Image } from 'lucide-react';
-
-type Giveaway = {
-  id: string;
-  title: string;
-  description: string;
-  prize: string;
-  image_url: string | null;
-  video_url: string | null;
-  visibility: 'public' | 'private';
-  created_at: string;
-};
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "react-hot-toast";
+import PrizeMediaUpload from "@/components/admin/PrizeMediaUpload";
+import { logAdminActivity } from "@/lib/logAdminActivity";
+import { motion } from "framer-motion";
 
 export default function AdminGiveawaysPage() {
-  const supabase = createClientComponentClient();
-  const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [prize, setPrize] = useState('');
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [giveaways, setGiveaways] = useState<any[]>([]);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    prize: "",
+    start_date: "",
+    end_date: "",
+  });
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Fetch giveaways in real time
+  async function fetchGiveaways() {
+    const { data, error } = await supabase
+      .from("giveaways")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) console.error(error);
+    else setGiveaways(data || []);
+  }
+
   useEffect(() => {
-    const fetchGiveaways = async () => {
-      const { data, error } = await supabase
-        .from('giveaways')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && data) setGiveaways(data as Giveaway[]);
-    };
     fetchGiveaways();
+  }, []);
 
-    const channel = supabase
-      .channel('realtime:giveaways')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'giveaways' },
-        () => fetchGiveaways()
-      )
-      .subscribe();
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase]);
+    const payload = { ...form };
 
-  // Upload media file to Supabase storage
-  const uploadMedia = async (file: File, folder: string) => {
-    const ext = file.name.split('.').pop();
-    const filePath = `${folder}/${crypto.randomUUID()}.${ext}`;
-    const { data, error } = await supabase.storage
-      .from('giveaway-media')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-      });
-    if (error) throw error;
-    const { data: urlData } = supabase.storage
-      .from('giveaway-media')
-      .getPublicUrl(filePath);
-    return urlData.publicUrl;
-  };
-
-  // Create new giveaway
-  const handleCreate = async () => {
-    try {
-      setLoading(true);
-
-      let image_url = null;
-      let video_url = null;
-
-      if (imageFile) image_url = await uploadMedia(imageFile, 'images');
-      if (videoFile) {
-        if (videoFile.size > 50 * 1024 * 1024)
-          throw new Error('Video exceeds 50 MB limit.');
-        video_url = await uploadMedia(videoFile, 'videos');
+    if (editingId) {
+      // Update existing
+      const { error } = await supabase
+        .from("giveaways")
+        .update(payload)
+        .eq("id", editingId);
+      if (error) toast.error("Error updating giveaway");
+      else {
+        await logAdminActivity("update_giveaway", `Updated giveaway: ${form.title}`);
+        toast.success("Giveaway updated!");
       }
-
-      const { error } = await supabase.from('giveaways').insert([
-        {
-          title,
-          description,
-          prize,
-          image_url,
-          video_url,
-          visibility,
-        },
-      ]);
-      if (error) throw error;
-
-      setTitle('');
-      setDescription('');
-      setPrize('');
-      setImageFile(null);
-      setVideoFile(null);
-      setVisibility('public');
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setLoading(false);
+    } else {
+      // Create new
+      const { error } = await supabase.from("giveaways").insert([payload]);
+      if (error) toast.error("Error creating giveaway");
+      else {
+        await logAdminActivity("create_giveaway", `Created new giveaway: ${form.title}`);
+        toast.success("Giveaway created!");
+      }
     }
-  };
 
-  // Delete giveaway
-  const handleDelete = async (id: string) => {
-    await supabase.from('giveaways').delete().eq('id', id);
-  };
+    setForm({ title: "", description: "", prize: "", start_date: "", end_date: "" });
+    setEditingId(null);
+    setLoading(false);
+    fetchGiveaways();
+  }
 
-  // Toggle visibility
-  const toggleVisibility = async (id: string, current: 'public' | 'private') => {
-    const newVisibility = current === 'public' ? 'private' : 'public';
-    await supabase
-      .from('giveaways')
-      .update({ visibility: newVisibility })
-      .eq('id', id);
-  };
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to delete this giveaway?")) return;
+    const { error } = await supabase.from("giveaways").delete().eq("id", id);
+    if (error) toast.error("Error deleting giveaway");
+    else {
+      await logAdminActivity("delete_giveaway", `Deleted giveaway ID: ${id}`);
+      toast.success("Giveaway deleted");
+      fetchGiveaways();
+    }
+  }
+
+  function startEdit(g: any) {
+    setForm({
+      title: g.title,
+      description: g.description,
+      prize: g.prize,
+      start_date: g.start_date,
+      end_date: g.end_date,
+    });
+    setEditingId(g.id);
+  }
 
   return (
-    <div className="p-6 space-y-8">
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle>Create New Giveaway</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
-          <Textarea placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} />
-          <Input placeholder="Prize" value={prize} onChange={e => setPrize(e.target.value)} />
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">🎁 Manage Giveaways</h1>
 
-          <div className="flex flex-col gap-2">
-            <label>Image Upload (optional)</label>
-            <Input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} />
-            <label>Video Upload (≤ 50 MB, optional)</label>
-            <Input type="file" accept="video/*" onChange={e => setVideoFile(e.target.files?.[0] || null)} />
-          </div>
+      <Card className="mb-8 p-4">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            placeholder="Giveaway Title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
+          <Input
+            placeholder="Prize Name"
+            value={form.prize}
+            onChange={(e) => setForm({ ...form, prize: e.target.value })}
+          />
+          <Textarea
+            placeholder="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className="md:col-span-2"
+          />
+          <Input
+            type="date"
+            value={form.start_date}
+            onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+          />
+          <Input
+            type="date"
+            value={form.end_date}
+            onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+          />
 
-          <div className="flex gap-4 items-center">
-            <Button
-              onClick={() => setVisibility('public')}
-              variant={visibility === 'public' ? 'default' : 'outline'}
-            >
-              <Eye className="mr-2 w-4 h-4" /> Public
-            </Button>
-            <Button
-              onClick={() => setVisibility('private')}
-              variant={visibility === 'private' ? 'default' : 'outline'}
-            >
-              <EyeOff className="mr-2 w-4 h-4" /> Private
-            </Button>
-          </div>
-
-          <Button onClick={handleCreate} disabled={loading}>
-            {loading ? 'Creating…' : 'Create Giveaway'}
+          <Button type="submit" className="md:col-span-2" disabled={loading}>
+            {editingId ? "Update Giveaway" : "Create Giveaway"}
           </Button>
-        </CardContent>
+        </form>
       </Card>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {giveaways.map(g => (
-          <Card key={g.id} className="shadow-md hover:shadow-xl transition">
-            <CardHeader className="flex justify-between">
-              <CardTitle>{g.title}</CardTitle>
+      <div className="grid gap-4">
+        {giveaways.map((g) => (
+          <motion.div
+            key={g.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-gray-200 p-4 shadow-md bg-white"
+          >
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="font-semibold text-lg">{g.title}</h2>
+                <p className="text-sm text-gray-600">{g.description}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {new Date(g.start_date).toLocaleDateString()} →{" "}
+                  {new Date(g.end_date).toLocaleDateString()}
+                </p>
+              </div>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => toggleVisibility(g.id, g.visibility)}>
-                  {g.visibility === 'public' ? <Eye /> : <EyeOff />}
+                <Button onClick={() => startEdit(g)} variant="secondary">
+                  Edit
                 </Button>
-                <Button variant="ghost" onClick={() => handleDelete(g.id)}>
-                  <Trash className="text-red-500" />
+                <Button onClick={() => handleDelete(g.id)} variant="destructive">
+                  Delete
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {g.image_url && <img src={g.image_url} alt={g.title} className="rounded-lg" />}
-              {g.video_url && (
-                <video
-                  src={g.video_url}
-                  controls
-                  className="rounded-lg w-full h-48 object-cover"
-                />
-              )}
-              <p className="text-sm text-gray-600">{g.description}</p>
-              <p className="text-sm font-semibold">Prize: {g.prize}</p>
-              <p className="text-xs text-gray-400">
-                Created: {new Date(g.created_at).toLocaleString()}
-              </p>
-            </CardContent>
-          </Card>
+            </div>
+
+            {g.media_url && (
+              <div className="mt-3">
+                <PrizeMediaUpload giveawayId={g.id} onUploaded={fetchGiveaways} />
+              </div>
+            )}
+          </motion.div>
         ))}
       </div>
     </div>
