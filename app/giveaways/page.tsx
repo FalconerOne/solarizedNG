@@ -1,142 +1,99 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Share2, Heart, Gift } from 'lucide-react';
-import { motion } from 'framer-motion';
-
-type Giveaway = {
-  id: string;
-  title: string;
-  description: string;
-  prize: string;
-  image_url: string | null;
-  video_url: string | null;
-  visibility: string;
-  created_at: string;
-};
+import { useState, useEffect } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import JoinGiveawayModal from "@/components/giveaways/JoinGiveawayModal";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 export default function GiveawaysPage() {
   const supabase = createClientComponentClient();
-  const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
-  const [likes, setLikes] = useState<{ [id: string]: number }>({});
-  const [shared, setShared] = useState<{ [id: string]: boolean }>({});
+  const [giveaways, setGiveaways] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedGiveaway, setSelectedGiveaway] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
 
-  // Fetch all public giveaways
   useEffect(() => {
-    const fetchPublicGiveaways = async () => {
+    const fetchUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+    };
+
+    const fetchGiveaways = async () => {
+      setLoading(true);
       const { data, error } = await supabase
-        .from('giveaways')
-        .select('*')
-        .eq('visibility', 'public')
-        .order('created_at', { ascending: false });
-
-      if (!error && data) setGiveaways(data);
+        .from("giveaways")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) console.error(error);
+      else setGiveaways(data || []);
+      setLoading(false);
     };
 
-    fetchPublicGiveaways();
-
-    // Real-time update subscription
-    const channel = supabase
-      .channel('realtime:giveaways_public')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'giveaways' },
-        fetchPublicGiveaways
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    fetchUser();
+    fetchGiveaways();
   }, [supabase]);
 
-  // Simulated like action (later connected to analytics)
-  const handleLike = (id: string) => {
-    setLikes(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-  };
-
-  // Simulated share (to be expanded to actual share link later)
-  const handleShare = (giveaway: Giveaway) => {
-    const shareText = `Check out this giveaway on SolarizedNG: ${giveaway.title}`;
-    const shareUrl = `${window.location.origin}/giveaways/${giveaway.id}`;
-    if (navigator.share) {
-      navigator.share({ title: giveaway.title, text: shareText, url: shareUrl });
-    } else {
-      navigator.clipboard.writeText(shareUrl);
-      alert('Link copied to clipboard!');
-    }
-    setShared(prev => ({ ...prev, [giveaway.id]: true }));
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh] text-gray-600">
+        <Loader2 className="animate-spin w-6 h-6 mr-2" /> Loading Giveaways...
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6 text-center">🎉 Active Giveaways</h1>
+    <div className="p-6 max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6 text-indigo-700 text-center">
+        Available Giveaways 🎉
+      </h1>
+
       {giveaways.length === 0 ? (
-        <p className="text-center text-gray-500">No active giveaways right now. Check back soon!</p>
+        <p className="text-gray-500 text-center">No active giveaways at the moment.</p>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {giveaways.map(g => (
-            <motion.div
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {giveaways.map((g) => (
+            <Card
               key={g.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
+              className="border border-gray-200 shadow-sm hover:shadow-lg transition rounded-xl bg-white"
             >
-              <Card className="shadow-lg hover:shadow-xl transition duration-300">
-                <CardHeader>
-                  <CardTitle>{g.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {g.image_url && (
-                    <img
-                      src={g.image_url}
-                      alt={g.title}
-                      className="rounded-lg w-full h-48 object-cover"
-                    />
-                  )}
-                  {g.video_url && (
-                    <video
-                      src={g.video_url}
-                      controls
-                      className="rounded-lg w-full h-48 object-cover"
-                    />
-                  )}
-                  <p className="text-sm text-gray-600">{g.description}</p>
-                  <p className="font-semibold text-sm">🎁 Prize: {g.prize}</p>
-                  <div className="flex justify-between items-center pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleLike(g.id)}
-                    >
-                      <Heart className="w-4 h-4 mr-2 text-pink-500" />
-                      {likes[g.id] || 0}
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleShare(g)}
-                    >
-                      <Share2 className="w-4 h-4 mr-2" />
-                      {shared[g.id] ? 'Shared' : 'Share'}
-                    </Button>
-
-                    <Button size="sm" variant="default">
-                      <Gift className="w-4 h-4 mr-2" /> View
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Posted {new Date(g.created_at).toLocaleDateString()}
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
+              <img
+                src={g.image_url || "/default-prize.jpg"}
+                alt={g.title}
+                className="w-full h-40 object-cover rounded-t-xl"
+              />
+              <CardContent className="p-4">
+                <h2 className="text-lg font-semibold text-gray-900 truncate">{g.title}</h2>
+                <p className="text-sm text-gray-500 line-clamp-2">{g.description}</p>
+                <p className="mt-2 text-sm font-medium">
+                  Activation Fee:{" "}
+                  <span className="text-indigo-600">
+                    {g.activation_fee > 0 ? `$${g.activation_fee}` : "Free"}
+                  </span>
+                </p>
+                <Button
+                  onClick={() => setSelectedGiveaway(g)}
+                  className="mt-3 w-full bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  Join Now
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
+      )}
+
+      {/* Modal for joining giveaway */}
+      {selectedGiveaway && user && (
+        <JoinGiveawayModal
+          open={!!selectedGiveaway}
+          onClose={() => setSelectedGiveaway(null)}
+          giveaway={selectedGiveaway}
+          userId={user.id}
+        />
       )}
     </div>
   );
