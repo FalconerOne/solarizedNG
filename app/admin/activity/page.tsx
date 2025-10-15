@@ -1,197 +1,229 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { CSVLink } from "react-csv";
+import { useEffect, useState, useMemo } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { motion } from "framer-motion";
-import { Download, Users, Gift, Trophy, Share2 } from "lucide-react";
-
-interface ActivityLog {
-  id: string;
-  user_name: string | null;
-  action: string;
-  details: string | null;
-  created_at: string;
-}
+import { FileDown, Bell, Download, FileText, User } from "lucide-react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import * as XLSX from "xlsx";
+import Link from "next/link";
 
 export default function AdminActivityPage() {
-  const [activity, setActivity] = useState<ActivityLog[]>([]);
-  const [filteredActivity, setFilteredActivity] = useState<ActivityLog[]>([]);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalPrizes: 0,
-    activeGiveaways: 0,
-    referrals: 0,
-  });
+  const supabase = createClientComponentClient();
+  const [logs, setLogs] = useState<any[]>([]);
+  const [filter, setFilter] = useState("all");
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showDrawer, setShowDrawer] = useState(false);
 
-  // Fetch metrics + activity logs
+  // 🎨 Chart Colors
+  const COLORS = ["#F97316", "#FB923C", "#FDBA74", "#FCD34D", "#A3E635", "#34D399"];
+
+  // 🧠 Fetch logs
   useEffect(() => {
-    const fetchInitialData = async () => {
-      // Fetch KPIs
-      const [{ count: usersCount }, { count: prizesCount }, { count: giveawaysCount }, { count: referralsCount }] =
-        await Promise.all([
-          supabase.from("profiles").select("*", { count: "exact", head: true }),
-          supabase.from("prizes").select("*", { count: "exact", head: true }),
-          supabase.from("giveaways").select("id", { count: "exact", head: true }),
-          supabase.from("referrals").select("*", { count: "exact", head: true }),
-        ]);
-
-      setStats({
-        totalUsers: usersCount || 0,
-        totalPrizes: prizesCount || 0,
-        activeGiveaways: giveawaysCount || 0,
-        referrals: referralsCount || 0,
-      });
-
-      // Fetch initial activity log
+    const fetchLogs = async () => {
       const { data, error } = await supabase
         .from("activity_log")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (!error && data) {
-        setActivity(data);
-        setFilteredActivity(data);
-      }
+        .limit(100);
+      if (!error && data) setLogs(data);
     };
+    fetchLogs();
 
-    fetchInitialData();
-
-    // Real-time listener for live events
-    const subscription = supabase
-      .channel("activity_feed")
+    // 🔔 Realtime notifications
+    const channel = supabase
+      .channel("realtime-activity")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "activity_log" },
         (payload) => {
-          setActivity((prev) => [payload.new as ActivityLog, ...prev.slice(0, 49)]);
-          setFilteredActivity((prev) => [payload.new as ActivityLog, ...prev.slice(0, 49)]);
+          setNotifications((prev) => [payload.new, ...prev]);
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
   }, []);
 
-  // Apply filters
-  useEffect(() => {
-    if (!startDate && !endDate) {
-      setFilteredActivity(activity);
-      return;
-    }
-    const start = startDate ? new Date(startDate) : new Date("2000-01-01");
-    const end = endDate ? new Date(endDate) : new Date();
+  // 🧩 Filtered logs
+  const filteredLogs = useMemo(() => {
+    if (filter === "all") return logs;
+    return logs.filter((log) => log.action?.toLowerCase().includes(filter.toLowerCase()));
+  }, [logs, filter]);
 
-    const filtered = activity.filter((log) => {
-      const date = new Date(log.created_at);
-      return date >= start && date <= end;
+  // 📊 Compute Action Breakdown for Pie Chart
+  const actionStats = useMemo(() => {
+    const countMap: Record<string, number> = {};
+    logs.forEach((log) => {
+      const action = log.action || "unknown";
+      countMap[action] = (countMap[action] || 0) + 1;
     });
-    setFilteredActivity(filtered);
-  }, [startDate, endDate, activity]);
+    return Object.entries(countMap).map(([name, value]) => ({ name, value }));
+  }, [logs]);
+
+  // 📈 Trend Data (Bar Chart)
+  const dateGrouped = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    logs.forEach((log) => {
+      const d = new Date(log.created_at).toLocaleDateString();
+      grouped[d] = (grouped[d] || 0) + 1;
+    });
+    return Object.entries(grouped).map(([date, count]) => ({ date, count }));
+  }, [logs]);
+
+  // 🧾 Export XLSX
+  const exportToExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(filteredLogs);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Activity Logs");
+    XLSX.writeFile(workbook, "AdminActivityLogs.xlsx");
+  };
+
+  // 🧾 Export PDF
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.text("SolarizedNG Admin Activity Report", 14, 15);
+    doc.autoTable({
+      startY: 20,
+      head: [["User", "Action", "Timestamp"]],
+      body: filteredLogs.map((log) => [log.username || "-", log.action || "-", new Date(log.created_at).toLocaleString()]),
+    });
+    doc.save("AdminActivityReport.pdf");
+  };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <main className="min-h-screen bg-white p-6">
       <motion.h1
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-3xl font-bold text-orange-600 mb-8 flex items-center gap-3"
+        className="text-3xl font-bold text-orange-600 mb-6 flex items-center gap-2"
       >
-        <Trophy className="text-orange-500" />
-        Admin Activity & Insights
+        🧭 Admin Activity Log
       </motion.h1>
 
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-orange-50 p-4 rounded-xl text-center shadow">
-          <Users className="mx-auto text-orange-500 mb-2" />
-          <h3 className="text-sm text-gray-500">Total Users</h3>
-          <p className="text-2xl font-bold text-orange-600">{stats.totalUsers}</p>
-        </div>
-
-        <div className="bg-orange-50 p-4 rounded-xl text-center shadow">
-          <Gift className="mx-auto text-orange-500 mb-2" />
-          <h3 className="text-sm text-gray-500">Prizes Claimed</h3>
-          <p className="text-2xl font-bold text-orange-600">{stats.totalPrizes}</p>
-        </div>
-
-        <div className="bg-orange-50 p-4 rounded-xl text-center shadow">
-          <Trophy className="mx-auto text-orange-500 mb-2" />
-          <h3 className="text-sm text-gray-500">Active Giveaways</h3>
-          <p className="text-2xl font-bold text-orange-600">{stats.activeGiveaways}</p>
-        </div>
-
-        <div className="bg-orange-50 p-4 rounded-xl text-center shadow">
-          <Share2 className="mx-auto text-orange-500 mb-2" />
-          <h3 className="text-sm text-gray-500">Referrals</h3>
-          <p className="text-2xl font-bold text-orange-600">{stats.referrals}</p>
-        </div>
-      </div>
-
-      {/* FILTER + EXPORT */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">From:</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="border rounded-lg p-2 text-sm"
-          />
-          <label className="text-sm text-gray-600">To:</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="border rounded-lg p-2 text-sm"
-          />
-        </div>
-
-        <CSVLink
-          data={filteredActivity}
-          filename="solarizedNG_activity_log.csv"
-          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-full text-sm transition shadow"
+      {/* 🔧 Toolbar */}
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="border rounded-md px-3 py-2 text-sm"
         >
-          <Download size={16} /> Export CSV
-        </CSVLink>
+          <option value="all">All Actions</option>
+          <option value="login">Login</option>
+          <option value="claim">Claim</option>
+          <option value="share">Share</option>
+          <option value="referral">Referral</option>
+          <option value="prize">Prize</option>
+          <option value="giveaway">Giveaway</option>
+        </select>
+
+        <button onClick={exportToExcel} className="flex items-center gap-2 bg-green-500 text-white px-3 py-2 rounded-md shadow hover:bg-green-600 transition">
+          <FileDown size={16} /> Export XLSX
+        </button>
+
+        <button onClick={exportToPDF} className="flex items-center gap-2 bg-orange-500 text-white px-3 py-2 rounded-md shadow hover:bg-orange-600 transition">
+          <FileText size={16} /> Export PDF
+        </button>
+
+        <button
+          onClick={() => setShowDrawer(!showDrawer)}
+          className="ml-auto flex items-center gap-2 border px-3 py-2 rounded-md text-orange-600 hover:bg-orange-50 transition"
+        >
+          <Bell size={18} />
+          {notifications.length > 0 && (
+            <span className="text-xs bg-red-500 text-white px-2 rounded-full">{notifications.length}</span>
+          )}
+        </button>
       </div>
 
-      {/* LIVE ACTIVITY FEED */}
-      <div className="bg-white shadow-lg rounded-2xl overflow-hidden">
-        <div className="bg-orange-600 text-white px-4 py-3 font-semibold text-lg">
-          Live Activity Feed
+      {/* 📈 Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+        <div className="bg-orange-50 rounded-xl p-4 shadow">
+          <h2 className="font-semibold text-orange-700 mb-3">Activity Trend</h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={dateGrouped}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#F97316" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <ul className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
-          {filteredActivity.length > 0 ? (
-            filteredActivity.map((log) => (
-              <motion.li
-                key={log.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="p-4 hover:bg-orange-50 transition"
-              >
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-gray-800">
-                    <span className="font-semibold text-orange-600">{log.user_name || "Anonymous"}</span>{" "}
-                    {log.action} {log.details && <span className="text-gray-500">({log.details})</span>}
-                  </p>
-                  <span className="text-xs text-gray-400">
-                    {new Date(log.created_at).toLocaleString()}
-                  </span>
-                </div>
-              </motion.li>
-            ))
-          ) : (
-            <li className="p-6 text-center text-gray-500 italic">No activity logs found.</li>
-          )}
-        </ul>
+
+        <div className="bg-orange-50 rounded-xl p-4 shadow">
+          <h2 className="font-semibold text-orange-700 mb-3">Action Breakdown</h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie data={actionStats} dataKey="value" nameKey="name" outerRadius={80} label>
+                {actionStats.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-    </div>
+
+      {/* 📋 Logs Table */}
+      <div className="overflow-x-auto bg-white shadow rounded-xl">
+        <table className="min-w-full border-collapse">
+          <thead>
+            <tr className="bg-orange-100 text-left text-sm font-semibold">
+              <th className="p-3 border-b">User</th>
+              <th className="p-3 border-b">Action</th>
+              <th className="p-3 border-b">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLogs.map((log, i) => (
+              <tr key={i} className="hover:bg-orange-50 transition">
+                <td className="p-3 border-b">
+                  {log.username ? (
+                    <Link href={`/admin/users/${log.username}`} className="text-orange-600 flex items-center gap-1">
+                      <User size={14} /> {log.username}
+                    </Link>
+                  ) : (
+                    <span className="text-gray-500 italic">Unknown</span>
+                  )}
+                </td>
+                <td className="p-3 border-b text-gray-800">{log.action}</td>
+                <td className="p-3 border-b text-sm text-gray-600">{new Date(log.created_at).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 🔔 Notifications Drawer */}
+      {showDrawer && (
+        <motion.div
+          initial={{ x: 300 }}
+          animate={{ x: 0 }}
+          exit={{ x: 300 }}
+          className="fixed top-0 right-0 w-80 h-full bg-white shadow-lg p-4 border-l z-50"
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold text-orange-600">Realtime Notifications</h3>
+            <button onClick={() => setShowDrawer(false)} className="text-gray-500">✕</button>
+          </div>
+          <ul className="space-y-3 overflow-y-auto max-h-[80vh]">
+            {notifications.map((n, i) => (
+              <li key={i} className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded shadow-sm">
+                <p className="font-medium text-gray-800">{n.username || "Unknown user"}</p>
+                <p className="text-sm text-gray-600">{n.action}</p>
+                <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</p>
+              </li>
+            ))}
+          </ul>
+        </motion.div>
+      )}
+    </main>
   );
 }
