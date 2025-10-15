@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { motion } from "framer-motion";
-import { FileDown, Bell, Download, FileText, User } from "lucide-react";
+import { FileDown, Bell, FileText, User, Award, Gift, Users, Activity } from "lucide-react";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -75,6 +75,15 @@ export default function AdminActivityPage() {
     return Object.entries(grouped).map(([date, count]) => ({ date, count }));
   }, [logs]);
 
+  // 📊 Summary Counts
+  const summary = useMemo(() => {
+    const uniqueUsers = new Set(logs.map((log) => log.username)).size;
+    const totalActivities = logs.length;
+    const prizes = logs.filter((log) => log.action?.toLowerCase().includes("prize")).length;
+    const giveaways = logs.filter((log) => log.action?.toLowerCase().includes("giveaway")).length;
+    return { uniqueUsers, totalActivities, prizes, giveaways };
+  }, [logs]);
+
   // 🧾 Export XLSX
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(filteredLogs);
@@ -102,8 +111,43 @@ export default function AdminActivityPage() {
         animate={{ opacity: 1, y: 0 }}
         className="text-3xl font-bold text-orange-600 mb-6 flex items-center gap-2"
       >
-        🧭 Admin Activity Log
+        🧭 Admin Activity Dashboard
       </motion.h1>
+
+      {/* 🧮 Summary Widgets */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-orange-50 p-4 rounded-xl flex items-center justify-between shadow">
+          <div>
+            <p className="text-sm text-gray-500">Total Activities</p>
+            <h3 className="text-2xl font-bold text-orange-600">{summary.totalActivities}</h3>
+          </div>
+          <Activity size={28} className="text-orange-400" />
+        </div>
+
+        <div className="bg-orange-50 p-4 rounded-xl flex items-center justify-between shadow">
+          <div>
+            <p className="text-sm text-gray-500">Unique Users</p>
+            <h3 className="text-2xl font-bold text-orange-600">{summary.uniqueUsers}</h3>
+          </div>
+          <Users size={28} className="text-orange-400" />
+        </div>
+
+        <div className="bg-orange-50 p-4 rounded-xl flex items-center justify-between shadow">
+          <div>
+            <p className="text-sm text-gray-500">Giveaways Created</p>
+            <h3 className="text-2xl font-bold text-orange-600">{summary.giveaways}</h3>
+          </div>
+          <Award size={28} className="text-orange-400" />
+        </div>
+
+        <div className="bg-orange-50 p-4 rounded-xl flex items-center justify-between shadow">
+          <div>
+            <p className="text-sm text-gray-500">Prizes Claimed</p>
+            <h3 className="text-2xl font-bold text-orange-600">{summary.prizes}</h3>
+          </div>
+          <Gift size={28} className="text-orange-400" />
+        </div>
+      </div>
 
       {/* 🔧 Toolbar */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
