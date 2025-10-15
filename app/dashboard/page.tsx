@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { Trophy, Gift, Activity, LogOut } from "lucide-react";
 
-// 🟠 Ad Interface
 interface Ad {
   id: string;
   title: string;
@@ -15,164 +15,122 @@ interface Ad {
   status: string;
 }
 
-// 🧍‍♂️ User Interface
-interface UserProfile {
+interface ActivityLog {
   id: string;
-  username: string;
-  points: number;
-  referred_by: string | null;
-  activated: boolean;
-  avatar_url: string | null;
-}
-
-// 🪄 Activity Log Interface
-interface Activity {
-  id: string;
-  action_type: string;
   description: string;
   created_at: string;
 }
 
 export default function DashboardPage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [ads, setAds] = useState<Ad[]>([]);
   const [activeAd, setActiveAd] = useState<Ad | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activity, setActivity] = useState<ActivityLog[]>([]);
+  const [userName, setUserName] = useState("Solarized User");
 
-  // Fetch Profile + Ads + Activity
+  // 🟠 Fetch active ads
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const fetchAds = async () => {
+      const { data, error } = await supabase
+        .from("adzone")
+        .select("*")
+        .eq("status", "active");
 
-      if (!user) return;
-
-      const [{ data: profileData }, { data: adData }, { data: activityData }] =
-        await Promise.all([
-          supabase.from("profiles").select("*").eq("id", user.id).single(),
-          supabase.from("adzone").select("*").eq("status", "active"),
-          supabase
-            .from("activity_log")
-            .select("id, action_type, description, created_at")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
-        ]);
-
-      if (profileData) setProfile(profileData);
-      if (adData && adData.length > 0) {
-        setAds(adData);
-        const randomAd = adData[Math.floor(Math.random() * adData.length)];
+      if (!error && data && data.length > 0) {
+        setAds(data);
+        const randomAd = data[Math.floor(Math.random() * data.length)];
         setActiveAd(randomAd);
       }
-      if (activityData) setActivities(activityData);
-
-      setLoading(false);
     };
-
-    fetchDashboardData();
+    fetchAds();
   }, []);
 
-  if (loading)
-    return (
-      <div className="p-6 text-center text-orange-600 font-semibold">
-        Loading your dashboard...
-      </div>
-    );
+  // 🟡 Fetch recent activity logs
+  useEffect(() => {
+    const fetchActivity = async () => {
+      const { data, error } = await supabase
+        .from("activity_log")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!error && data) setActivity(data);
+    };
+    fetchActivity();
+  }, []);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* 🌞 Welcome Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-orange-50 to-white shadow-md rounded-xl p-6 flex items-center gap-4"
-      >
-        {profile?.avatar_url ? (
-          <Image
-            src={profile.avatar_url}
-            alt="User Avatar"
-            width={64}
-            height={64}
-            className="rounded-full border-2 border-orange-400"
-          />
-        ) : (
-          <div className="w-16 h-16 rounded-full bg-orange-200 flex items-center justify-center text-white font-bold text-xl">
-            {profile?.username?.[0]?.toUpperCase() || "U"}
-          </div>
-        )}
+    <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white py-8 px-4 md:px-10">
+      {/* 🏆 Dashboard Header */}
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-orange-600">
-            Hi, {profile?.username || "User"} 👋
-          </h1>
-          <p className="text-gray-600 text-sm">
-            Welcome back to SolarizedNG GiveAwayz
-          </p>
-        </div>
-      </motion.div>
-
-      {/* ⚡ User Stats */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="grid sm:grid-cols-3 gap-4"
-      >
-        <div className="bg-white rounded-xl shadow-md p-4 text-center">
-          <h3 className="text-gray-500 text-sm">Total Points</h3>
-          <p className="text-2xl font-bold text-orange-600">
-            {profile?.points || 0}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl shadow-md p-4 text-center">
-          <h3 className="text-gray-500 text-sm">Referrals</h3>
-          <p className="text-2xl font-bold text-orange-600">
-            {profile?.referred_by ? 1 : 0}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl shadow-md p-4 text-center">
-          <h3 className="text-gray-500 text-sm">Status</h3>
-          <p
-            className={`text-lg font-semibold ${
-              profile?.activated ? "text-green-600" : "text-red-500"
-            }`}
+          <motion.h1
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            className="text-3xl md:text-4xl font-bold text-orange-600 flex items-center gap-2"
           >
-            {profile?.activated ? "Activated" : "Pending"}
-          </p>
+            <Trophy className="text-yellow-500 w-8 h-8" /> Dashboard
+          </motion.h1>
+          <p className="text-gray-600 mt-1">Welcome back, {userName} 🌞</p>
         </div>
-      </motion.div>
 
-      {/* 🎁 Claimable Giveaways */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="bg-gradient-to-r from-orange-50 to-white p-6 rounded-xl shadow-md"
-      >
-        <h2 className="text-lg font-semibold text-orange-600 mb-3">
-          🎉 Claim Prizes & Giveaways
-        </h2>
-        <p className="text-gray-600 mb-4 text-sm">
-          Browse and claim available giveaways. New ones every week!
-        </p>
+        {/* Logout / Profile */}
+        <div className="flex items-center gap-4">
+          <Link
+            href="/profile"
+            className="text-orange-600 hover:underline font-medium"
+          >
+            Profile
+          </Link>
+          <button className="flex items-center gap-1 text-red-500 hover:text-red-600 transition">
+            <LogOut className="w-5 h-5" /> Logout
+          </button>
+        </div>
+      </div>
+
+      {/* 🎯 Quick Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         <Link
           href="/giveaways"
-          className="inline-block bg-orange-500 text-white px-5 py-2 rounded-full hover:bg-orange-600 transition"
+          className="bg-orange-500 text-white rounded-xl shadow-md p-6 hover:bg-orange-600 transition text-center"
         >
-          View Giveaways
+          <Gift className="mx-auto w-8 h-8 mb-2" />
+          <h3 className="font-semibold text-lg">Join Giveaways</h3>
+          <p className="text-sm text-orange-100 mt-1">
+            Participate and win amazing rewards.
+          </p>
         </Link>
-      </motion.section>
 
-      {/* 🟠 Mid-section Ad Zone */}
-      {activeAd && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="my-6 p-4 border rounded-xl bg-gradient-to-r from-orange-50 to-white shadow-md text-center"
+        <Link
+          href="/prizes"
+          className="bg-white border border-orange-200 rounded-xl shadow-md p-6 hover:bg-orange-50 transition text-center"
         >
+          <Trophy className="mx-auto w-8 h-8 text-orange-500 mb-2" />
+          <h3 className="font-semibold text-lg text-orange-600">
+            Claim Prizes
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            View and claim your earned rewards.
+          </p>
+        </Link>
+
+        <Link
+          href="/activity"
+          className="bg-white border border-gray-200 rounded-xl shadow-md p-6 hover:bg-gray-50 transition text-center"
+        >
+          <Activity className="mx-auto w-8 h-8 text-gray-500 mb-2" />
+          <h3 className="font-semibold text-lg text-gray-700">
+            Activity Log
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Track your participation history.
+          </p>
+        </Link>
+      </div>
+
+      {/* 🟠 Ad Zone (Mid-Section) */}
+      {activeAd && (
+        <div className="my-10 p-4 border rounded-xl bg-gradient-to-r from-orange-50 to-white shadow-md text-center">
           <p className="text-sm uppercase tracking-wide text-orange-600 font-semibold mb-2">
             Sponsored
           </p>
@@ -198,60 +156,67 @@ export default function DashboardPage() {
               Learn More
             </a>
           )}
-        </motion.div>
+        </div>
       )}
 
-      {/* 📜 Activity Log */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="bg-white rounded-xl shadow-md p-6"
-      >
-        <h2 className="text-lg font-semibold text-orange-600 mb-4">
-          Your Recent Activity
+      {/* 📊 Activity Log Section */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <h2 className="text-xl font-bold text-orange-600 mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-orange-500" /> Recent Activity
         </h2>
-        {activities.length > 0 ? (
+        {activity.length > 0 ? (
           <ul className="space-y-3">
-            {activities.map((act) => (
+            {activity.map((log) => (
               <li
-                key={act.id}
-                className="flex justify-between border-b border-orange-100 pb-2"
+                key={log.id}
+                className="border-b border-gray-100 pb-2 last:border-none"
               >
-                <span className="text-gray-700 text-sm">{act.description}</span>
-                <span className="text-gray-400 text-xs">
-                  {new Date(act.created_at).toLocaleDateString()}
+                <p className="text-gray-800">{log.description}</p>
+                <span className="text-xs text-gray-500">
+                  {new Date(log.created_at).toLocaleString()}
                 </span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-gray-500 text-sm">
-            No recent activity found. Start earning points today!
-          </p>
+          <p className="text-gray-500">No recent activity yet.</p>
         )}
-      </motion.section>
+      </div>
 
-      {/* 🚀 Quick Actions */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-        className="flex flex-wrap justify-center gap-3 mt-6"
-      >
-        <Link
-          href="/leaderboard"
-          className="bg-orange-500 text-white px-5 py-2 rounded-full hover:bg-orange-600 transition"
-        >
-          View Leaderboard
-        </Link>
-        <Link
-          href="/referrals"
-          className="border border-orange-400 text-orange-600 px-5 py-2 rounded-full hover:bg-orange-100 transition"
-        >
-          Refer a Friend
-        </Link>
-      </motion.div>
+      {/* 📢 Bottom Ad Zone */}
+      {ads.length > 1 && (
+        <div className="mt-12 text-center">
+          <p className="text-sm uppercase tracking-wide text-orange-600 font-semibold mb-3">
+            Sponsored
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
+            {ads.slice(0, 2).map((ad) => (
+              <a
+                key={ad.id}
+                href={ad.link_url || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white border border-orange-100 rounded-xl shadow p-3 w-72 hover:shadow-lg transition"
+              >
+                {ad.image_url ? (
+                  <Image
+                    src={ad.image_url}
+                    alt={ad.title}
+                    width={280}
+                    height={140}
+                    className="rounded-md mb-2"
+                  />
+                ) : (
+                  <div className="text-gray-400 italic py-6">
+                    Ad coming soon…
+                  </div>
+                )}
+                <h4 className="font-medium text-orange-600">{ad.title}</h4>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
