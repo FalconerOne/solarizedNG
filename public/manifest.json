@@ -1,15 +1,11 @@
 {
-  "name": "SolarizedNG Charity Giveaway",
+  "name": "SolarizedNG",
   "short_name": "SolarizedNG",
-  "description": "Win, Share, Support & Impact with SolarizedNG Charity Giveaway.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#f97316",
-  "orientation": "portrait-primary",
-  "scope": "/",
-  "id": "/",
-  "lang": "en",
+  "theme_color": "#0f172a",
+  "description": "Join, win, and track giveaways that power hope and medical care for children.",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -20,38 +16,6 @@
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
-    },
-    {
-      "src": "/icons/maskable_icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Register Now",
-      "short_name": "Register",
-      "description": "Join the next SolarizedNG charity draw.",
-      "url": "/register",
-      "icons": [
-        {
-          "src": "/icons/icon-192x192.png",
-          "sizes": "192x192"
-        }
-      ]
-    },
-    {
-      "name": "Check Status",
-      "short_name": "Status",
-      "description": "View your registration or prize status.",
-      "url": "/status",
-      "icons": [
-        {
-          "src": "/icons/icon-192x192.png",
-          "sizes": "192x192"
-        }
-      ]
     }
   ]
 }
