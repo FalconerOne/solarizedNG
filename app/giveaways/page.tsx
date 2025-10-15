@@ -54,17 +54,32 @@ export default function GiveawaysPage() {
       {giveaways.length === 0 ? (
         <p className="text-gray-500 text-center">No active giveaways at the moment.</p>
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {giveaways.map((g) => (
             <Card
               key={g.id}
               className="border border-gray-200 shadow-sm hover:shadow-lg transition rounded-xl bg-white"
-            >
-              <img
-                src={g.image_url || "/default-prize.jpg"}
-                alt={g.title}
-                className="w-full h-40 object-cover rounded-t-xl"
-              />
+              <div className="relative w-full h-48 rounded-t-xl overflow-hidden bg-black">
+              
+  {g.video_url ? (
+    <video
+      src={g.video_url}
+      className="w-full h-full object-cover"
+      muted
+      loop
+      autoPlay
+      playsInline
+    />
+  ) : (
+    <img
+      src={g.image_url || "/default-prize.jpg"}
+      alt={g.title}
+      className="w-full h-full object-cover"
+    />
+  )}
+  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+</div>
               <CardContent className="p-4">
                 <h2 className="text-lg font-semibold text-gray-900 truncate">{g.title}</h2>
                 <p className="text-sm text-gray-500 line-clamp-2">{g.description}</p>
