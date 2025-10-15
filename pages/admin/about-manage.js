@@ -3,6 +3,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import MissionEditor from "@/components/about/MissionEditor";
 import Head from "next/head";
 import TimelineEditor from "@/components/about/TimelineEditor";
+import TeamEditor from "@/components/about/TeamEditor";
 
 export default function AboutManagePage() {
   return (
