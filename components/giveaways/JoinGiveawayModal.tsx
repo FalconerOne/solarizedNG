@@ -81,6 +81,26 @@ export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: a
           </DialogTitle>
         </DialogHeader>
 
+        {/* 🎥 Media Preview Section */}
+        {giveaway.video_url ? (
+          <div className="relative w-full aspect-video mb-4 rounded-xl overflow-hidden shadow-lg">
+            <video
+              src={giveaway.video_url}
+              className="w-full h-full object-cover"
+              controls
+              playsInline
+            />
+          </div>
+        ) : giveaway.image_url ? (
+          <div className="relative w-full aspect-video mb-4 rounded-xl overflow-hidden shadow-lg">
+            <img
+              src={giveaway.image_url}
+              alt={giveaway.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : null}
+
         {!joined ? (
           <div className="p-3 text-center">
             <p className="text-gray-700 mb-4">
