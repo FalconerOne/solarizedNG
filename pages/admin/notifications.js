@@ -1,98 +1,77 @@
-import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+// src/pages/admin/notifications.js
+"use client";
+import React, { useState, useEffect } from "react";
+import { addNotification, getNotifications, markAsRead } from "@/lib/notifications";
+import { useSession } from "@supabase/auth-helpers-react";
 
-export default function AdminNotifications() {
+const AdminNotificationsPage = () => {
+  const session = useSession();
+  const user = session?.user;
+  const [notifications, setNotifications] = useState([]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [audience, setAudience] = useState("all");
+  const [targetId, setTargetId] = useState(""); // optional target user
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState("");
 
-  async function sendNotification(e) {
-    e.preventDefault();
+  useEffect(() => {
+    const load = async () => {
+      if (user?.id) {
+        const data = await getNotifications(user.id);
+        setNotifications(data);
+      }
+    };
+    load();
+  }, [user?.id]);
+
+  const handleSend = async () => {
+    if (!title || !message) return alert("Please fill all fields");
     setLoading(true);
-    setFeedback("");
 
     try {
-      const response = await fetch(
-        "https://yacftysswuumjbrfarmx.functions.supabase.co/send_notifications",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ title, message, audience }),
-        }
-      );
-
-      const data = await response.json();
-      if (response.ok) {
-        setFeedback(`✅ Sent to ${data.recipients} users`);
+      if (targetId) {
+        await addNotification({
+          user_id: targetId,
+          title,
+          message,
+          type: "admin",
+        });
       } else {
-        setFeedback(`❌ Error: ${data.error}`);
+        // 🔁 Broadcast to all users (handled via API route)
+        const res = await fetch("/api/admin/broadcast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, message }),
+        });
+        if (!res.ok) throw new Error("Broadcast failed");
       }
-    } catch (err) {
-      console.error(err);
-      setFeedback("⚠️ Something went wrong sending the notification.");
+      setTitle("");
+      setMessage("");
+      setTargetId("");
+      alert("✅ Notification sent successfully!");
+    } catch (e) {
+      console.error(e);
+      alert("❌ Failed to send notification");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-lg mx-auto bg-white shadow-md rounded-lg p-6">
-        <h1 className="text-2xl font-bold mb-4">Send Notifications</h1>
-        <form onSubmit={sendNotification} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium">Title</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-2 border rounded"
-              placeholder="Activation Reminder"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Message</label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full p-2 border rounded"
-              rows="4"
-              placeholder="Join the giveaway before it closes!"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Audience</label>
-            <select
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              className="w-full p-2 border rounded"
-            >
-              <option value="all">All Users</option>
-              <option value="activated">Activated Users</option>
-              <option value="non_activated">Non-Activated Users</option>
-              <option value="winners">Past Winners</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-slate-800 text-white py-2 rounded hover:bg-slate-700"
-          >
-            {loading ? "Sending..." : "Send Notification"}
-          </button>
-        </form>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-gray-100">
+        Notification Control Center
+      </h1>
 
-        {feedback && (
-          <div className="mt-4 text-center font-medium text-gray-700">
-            {feedback}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+      {/* Send Notification Form */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-8 shadow-sm">
+        <h2 className="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-200">
+          Send Notification
+        </h2>
+        <div className="space-y-3">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
+          />
+          <textarea
