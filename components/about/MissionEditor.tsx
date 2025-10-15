@@ -30,6 +30,16 @@ export default function MissionEditor() {
     try {
       const { error } = await updateMission(mission);
       if (error) throw error;
+
+      // ✅ D7.3: Trigger revalidation of About page
+      await fetch("/api/revalidate-about", {
+        method: "POST",
+        headers: {
+          "x-revalidate-secret":
+            process.env.NEXT_PUBLIC_REVALIDATE_SECRET || "solarizedng_about_refresh",
+        },
+      });
+
       setStatus("success");
       setTimeout(() => setStatus("idle"), 2500);
     } catch (err) {
