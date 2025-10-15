@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
+import AdZoneDisplay from "@/components/ads/AdZoneDisplay"; // ✅ imported for dynamic zone logic
 
 interface Ad {
   id: string;
@@ -25,7 +26,7 @@ export default function UserProfilePage() {
 
       if (!error && data && data.length > 0) {
         setAds(data);
-        // Randomly select one ad
+        // Randomly select one ad for variety
         const randomAd = data[Math.floor(Math.random() * data.length)];
         setActiveAd(randomAd);
       }
@@ -36,18 +37,20 @@ export default function UserProfilePage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-orange-600 mb-4">
-        Your Profile
-      </h1>
+      {/* 🧍 Profile Header */}
+      <h1 className="text-2xl font-bold text-orange-600 mb-4">Your Profile</h1>
 
-      {/* 🧍‍♂️ Profile details section (example placeholder) */}
+      {/* 👤 Profile Info */}
       <div className="bg-white shadow p-4 rounded-lg mb-6">
         <p className="text-gray-700">
           Welcome back! Manage your activity, giveaways, and account here.
         </p>
       </div>
 
-      {/* 🟠 MID-SECTION AD ZONE */}
+      {/* 🪧 Dynamic AdZone (Profile Midsection) */}
+      <AdZoneDisplay zone="Profile Midsection" />
+
+      {/* 🟠 Random Ad Example (direct from Supabase) */}
       {activeAd && (
         <div className="my-6 p-4 border rounded-xl bg-gradient-to-r from-orange-50 to-white shadow-md text-center">
           <p className="text-sm uppercase tracking-wide text-orange-600 font-semibold mb-2">
@@ -78,7 +81,7 @@ export default function UserProfilePage() {
         </div>
       )}
 
-      {/* ⚙️ Other profile content continues */}
+      {/* 📊 Profile Details */}
       <div className="bg-white p-4 rounded-lg shadow">
         <p className="text-gray-700">
           Here you can see your points, referrals, and giveaway stats.
