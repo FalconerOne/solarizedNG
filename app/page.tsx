@@ -68,6 +68,9 @@ export default function LandingPage() {
 
       <footer className="mt-12 text-sm text-gray-500">
         App designed by <span className="text-orange-600 font-semibold">FalconerOne Technologies</span>
+        {/* 📢 Ad Zone (Landing Bottom) */}
+<AdZone zone="landing-bottom" />
+
       </footer>
     </main>
   );
