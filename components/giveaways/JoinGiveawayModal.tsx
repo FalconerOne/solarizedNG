@@ -2,122 +2,132 @@
 
 import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle } from "lucide-react";
 
-interface JoinGiveawayModalProps {
-  open: boolean;
-  onClose: () => void;
-  giveaway: {
-    id: string;
-    title: string;
-    activation_fee: number;
-    description?: string;
-  };
-  userId: string;
-}
-
-export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: JoinGiveawayModalProps) {
+export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: any) {
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
-  const [error, setError] = useState("");
 
   const handleJoin = async () => {
+    if (!userId || !giveaway) return;
     setLoading(true);
-    setError("");
 
     try {
-      const fee = giveaway.activation_fee || 0;
-
-      // Check if user already joined
+      // Check if already joined
       const { data: existing } = await supabase
         .from("giveaway_participants")
-        .select("*")
+        .select("id")
         .eq("giveaway_id", giveaway.id)
         .eq("user_id", userId)
         .single();
 
       if (existing) {
-        setError("You already joined this giveaway.");
+        alert("You’ve already joined this giveaway!");
         setLoading(false);
+        onClose();
         return;
       }
 
-      // If activation fee is > 0, mark payment as pending
-      const paymentStatus = fee > 0 ? "pending" : "free";
+      // Simulate payment or activation fee confirmation
+      if (giveaway.activation_fee > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // simulate delay
+      }
 
-      const { error: joinError } = await supabase.from("giveaway_participants").insert([
+      // Record participation
+      const { error: insertError } = await supabase.from("giveaway_participants").insert([
         {
           giveaway_id: giveaway.id,
           user_id: userId,
-          activation_fee: fee,
-          payment_status: paymentStatus
-        }
+          joined_at: new Date().toISOString(),
+        },
       ]);
 
-      if (joinError) throw joinError;
+      if (insertError) throw insertError;
+
+      // Log activity
+      await supabase.from("activity_log").insert([
+        {
+          user_id: userId,
+          activity_type: "join_giveaway",
+          details: `Joined giveaway: ${giveaway.title}`,
+          created_at: new Date().toISOString(),
+        },
+      ]);
 
       setJoined(true);
+      setLoading(false);
     } catch (err: any) {
-      setError(err.message);
-    } finally {
+      console.error(err);
+      alert("An error occurred while joining. Please try again.");
       setLoading(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="rounded-2xl max-w-md bg-white shadow-xl">
+      <DialogContent className="max-w-md bg-white">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-indigo-700">{giveaway.title}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold text-indigo-700">
+            Join Giveaway
+          </DialogTitle>
         </DialogHeader>
 
         {!joined ? (
-          <div className="space-y-3">
-            <p className="text-gray-600 text-sm">{giveaway.description}</p>
-
-            <div className="border rounded-lg p-3 bg-gray-50 text-sm">
-              <p>
-                Activation Fee:{" "}
-                <span className="font-semibold text-indigo-700">
-                  {giveaway.activation_fee > 0 ? `$${giveaway.activation_fee}` : "Free"}
-                </span>
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
+          <div className="p-3 text-center">
+            <p className="text-gray-700 mb-4">
+              Are you sure you want to join <strong>{giveaway.title}</strong>?
+            </p>
+            <p className="text-sm text-gray-500 mb-5">
+              Activation Fee:{" "}
+              <span className="text-indigo-600 font-medium">
                 {giveaway.activation_fee > 0
-                  ? "You’ll be redirected to payment once you confirm."
-                  : "Free entry – no payment required."}
-              </p>
-            </div>
+                  ? `$${giveaway.activation_fee}`
+                  : "Free"}
+              </span>
+            </p>
 
-            {error && <p className="text-red-500 text-xs">{error}</p>}
-
-            <Button
-              onClick={handleJoin}
-              disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-md py-2"
-            >
-              {loading ? (
-                <span className="flex items-center gap-2 justify-center">
-                  <Loader2 className="animate-spin w-4 h-4" /> Joining...
-                </span>
-              ) : (
-                "Join Giveaway"
-              )}
-            </Button>
+            <DialogFooter className="flex justify-center gap-3">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleJoin}
+                disabled={loading}
+                className="bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin w-4 h-4 mr-2" /> Joining...
+                  </>
+                ) : (
+                  "Confirm"
+                )}
+              </Button>
+            </DialogFooter>
           </div>
         ) : (
-          <div className="text-center py-6 space-y-3">
-            <h3 className="text-lg font-semibold text-green-600">✅ You’ve joined this giveaway!</h3>
-            <p className="text-gray-600 text-sm">
-              {giveaway.activation_fee > 0
-                ? "Your payment status is pending. Complete payment to activate participation."
-                : "You can now track your participation in your dashboard."}
+          <div className="flex flex-col items-center justify-center py-8">
+            <CheckCircle className="text-green-500 w-10 h-10 mb-3" />
+            <h2 className="text-lg font-semibold text-gray-800">
+              Successfully Joined!
+            </h2>
+            <p className="text-sm text-gray-500 mb-5">
+              You’ve been added to the participants list.
             </p>
-            <Button onClick={onClose} className="bg-indigo-600 text-white mt-3">
-              Close
+            <Button
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+              onClick={onClose}
+            >
+              Done
             </Button>
           </div>
         )}
