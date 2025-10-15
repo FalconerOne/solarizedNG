@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle } from "lucide-react";
+import { notifyAdminOnJoin } from "@/lib/notifyAdminOnJoin"; // ✅ NEW IMPORT
 
 export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: any) {
   const supabase = createClientComponentClient();
@@ -63,6 +64,9 @@ export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: a
         },
       ]);
 
+      // ✅ Trigger admin notification
+      await notifyAdminOnJoin(giveaway.id, userId);
+
       setJoined(true);
       setLoading(false);
     } catch (err: any) {
@@ -81,26 +85,6 @@ export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: a
           </DialogTitle>
         </DialogHeader>
 
-        {/* 🎥 Media Preview Section */}
-        {giveaway.video_url ? (
-          <div className="relative w-full aspect-video mb-4 rounded-xl overflow-hidden shadow-lg">
-            <video
-              src={giveaway.video_url}
-              className="w-full h-full object-cover"
-              controls
-              playsInline
-            />
-          </div>
-        ) : giveaway.image_url ? (
-          <div className="relative w-full aspect-video mb-4 rounded-xl overflow-hidden shadow-lg">
-            <img
-              src={giveaway.image_url}
-              alt={giveaway.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ) : null}
-
         {!joined ? (
           <div className="p-3 text-center">
             <p className="text-gray-700 mb-4">
@@ -109,9 +93,7 @@ export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: a
             <p className="text-sm text-gray-500 mb-5">
               Activation Fee:{" "}
               <span className="text-indigo-600 font-medium">
-                {giveaway.activation_fee > 0
-                  ? `$${giveaway.activation_fee}`
-                  : "Free"}
+                {giveaway.activation_fee > 0 ? `$${giveaway.activation_fee}` : "Free"}
               </span>
             </p>
 
@@ -137,9 +119,7 @@ export default function JoinGiveawayModal({ open, onClose, giveaway, userId }: a
         ) : (
           <div className="flex flex-col items-center justify-center py-8">
             <CheckCircle className="text-green-500 w-10 h-10 mb-3" />
-            <h2 className="text-lg font-semibold text-gray-800">
-              Successfully Joined!
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-800">Successfully Joined!</h2>
             <p className="text-sm text-gray-500 mb-5">
               You’ve been added to the participants list.
             </p>
