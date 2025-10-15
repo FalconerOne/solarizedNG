@@ -9,6 +9,7 @@ export default function AdminNotifications() {
   const [response, setResponse] = useState(null);
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [segment, setSegment] = useState("all");
 
   async function fetchHistory() {
     try {
@@ -31,15 +32,17 @@ export default function AdminNotifications() {
     e.preventDefault();
     if (!title || !message) return alert("Enter both title and message");
     setSending(true);
+    setResponse(null);
+
     try {
       const res = await fetch("/api/admin/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, message }),
+        body: JSON.stringify({ title, message, segment }),
       });
       const data = await res.json();
       if (res.ok) {
-        setResponse({ ok: true, text: `✅ Sent to ${data.count || 0} users` });
+        setResponse({ ok: true, text: `✅ Sent to ${data.count || 0} ${segment} users` });
         setTitle("");
         setMessage("");
         fetchHistory();
@@ -64,6 +67,7 @@ export default function AdminNotifications() {
     <div className="p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6">Admin Notifications</h1>
 
+      {/* Tabs */}
       <div className="flex gap-3 mb-6 border-b border-gray-200">
         <button
           onClick={() => setActiveTab("broadcast")}
@@ -89,6 +93,19 @@ export default function AdminNotifications() {
 
       {activeTab === "broadcast" ? (
         <form onSubmit={handleBroadcast} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Send To</label>
+            <select
+              value={segment}
+              onChange={(e) => setSegment(e.target.value)}
+              className="border p-2 rounded w-full"
+            >
+              <option value="all">All Users</option>
+              <option value="activated">Activated Users</option>
+              <option value="supervisors">Supervisors</option>
+            </select>
+          </div>
+
           <input
             type="text"
             value={title}
@@ -120,27 +137,4 @@ export default function AdminNotifications() {
       ) : (
         <div>
           {loadingHistory ? (
-            <p>Loading...</p>
-          ) : history.length === 0 ? (
-            <p>No broadcasts yet.</p>
-          ) : (
-            <ul className="divide-y">
-              {history.map((item) => (
-                <li key={item.id} className="flex justify-between py-2">
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>{item.message}</p>
-                    <small>{new Date(item.created_at).toLocaleString()}</small>
-                  </div>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-500">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+            <p>Loadi
