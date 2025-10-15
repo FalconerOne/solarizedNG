@@ -3,145 +3,163 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 
 interface Ad {
-  id: number;
-  title: string;
+  id: string;
+  zone_name: string;
   ad_code: string;
-  zone: string;
   is_active: boolean;
   created_at: string;
 }
 
-export default function AdsManagerPage() {
+export default function AdManagerPage() {
   const [ads, setAds] = useState<Ad[]>([]);
-  const [form, setForm] = useState({ title: "", ad_code: "", zone: "landing_bottom", is_active: true });
-  const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [newAd, setNewAd] = useState({ zone_name: "", ad_code: "" });
 
-  // 🧭 Fetch all ads
-  const fetchAds = async () => {
-    const { data, error } = await supabase.from("adzone").select("*").order("created_at", { ascending: false });
-    if (!error && data) setAds(data);
-  };
-
+  // 🟠 Fetch all ads
   useEffect(() => {
+    const fetchAds = async () => {
+      const { data, error } = await supabase
+        .from("ad_zones")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && data) setAds(data);
+      setLoading(false);
+    };
     fetchAds();
   }, []);
 
-  // 💾 Add or update ad
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    setLoading(true);
+  // ➕ Add new ad
+  const handleAddAd = async () => {
+    if (!newAd.zone_name.trim() || !newAd.ad_code.trim()) return alert("Please fill all fields");
 
-    if (editingId) {
-      await supabase.from("adzone").update(form).eq("id", editingId);
-      setEditingId(null);
+    const { error } = await supabase
+      .from("ad_zones")
+      .insert([{ zone_name: newAd.zone_name, ad_code: newAd.ad_code, is_active: true }]);
+
+    if (error) {
+      alert("Failed to add ad");
     } else {
-      await supabase.from("adzone").insert([form]);
-    }
-
-    setForm({ title: "", ad_code: "", zone: "landing_bottom", is_active: true });
-    await fetchAds();
-    setLoading(false);
-  };
-
-  // 🗑️ Delete ad
-  const handleDelete = async (id: number) => {
-    if (confirm("Delete this ad?")) {
-      await supabase.from("adzone").delete().eq("id", id);
-      await fetchAds();
+      setNewAd({ zone_name: "", ad_code: "" });
+      location.reload();
     }
   };
 
-  // ✏️ Edit ad
-  const handleEdit = (ad: Ad) => {
-    setForm({ title: ad.title, ad_code: ad.ad_code, zone: ad.zone, is_active: ad.is_active });
-    setEditingId(ad.id);
+  // 🔄 Toggle ad status
+  const toggleAdStatus = async (id: string, current: boolean) => {
+    const { error } = await supabase
+      .from("ad_zones")
+      .update({ is_active: !current })
+      .eq("id", id);
+
+    if (!error) {
+      setAds((prev) =>
+        prev.map((ad) => (ad.id === id ? { ...ad, is_active: !current } : ad))
+      );
+    }
   };
+
+  // 🗑 Delete ad
+  const deleteAd = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this ad?")) return;
+    const { error } = await supabase.from("ad_zones").delete().eq("id", id);
+    if (!error) setAds((prev) => prev.filter((ad) => ad.id !== id));
+  };
+
+  if (loading)
+    return <div className="p-6 text-gray-500">Loading ads...</div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <motion.h1
-        className="text-2xl font-bold text-orange-600 mb-6"
+        className="text-2xl font-bold mb-6 text-orange-600"
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
       >
         Ad Manager
       </motion.h1>
 
-      <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-5 mb-8 space-y-3">
-        <Input
-          placeholder="Ad Title"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          required
-        />
-
-        <Textarea
-          placeholder="Paste Ad Code (HTML/JS)"
-          rows={5}
-          value={form.ad_code}
-          onChange={(e) => setForm({ ...form, ad_code: e.target.value })}
-          required
-        />
-
-        <div className="flex gap-4 flex-wrap items-center">
-          <select
-            className="border rounded-md px-3 py-2"
-            value={form.zone}
-            onChange={(e) => setForm({ ...form, zone: e.target.value })}
+      {/* ➕ Add New Ad Form */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6 border border-orange-100">
+        <h2 className="text-lg font-semibold mb-3 text-gray-700">Add New Ad</h2>
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            type="text"
+            placeholder="Zone Name"
+            value={newAd.zone_name}
+            onChange={(e) => setNewAd({ ...newAd, zone_name: e.target.value })}
+            className="border border-gray-300 p-2 rounded w-full"
+          />
+          <input
+            type="text"
+            placeholder="Ad Code (HTML/JS)"
+            value={newAd.ad_code}
+            onChange={(e) => setNewAd({ ...newAd, ad_code: e.target.value })}
+            className="border border-gray-300 p-2 rounded w-full"
+          />
+          <button
+            onClick={handleAddAd}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded"
           >
-            <option value="landing_bottom">Landing Bottom</option>
-            <option value="profile_mid">Profile Mid</option>
-            <option value="dashboard_side">Dashboard Side</option>
-          </select>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.is_active}
-              onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-            />
-            Active
-          </label>
-
-          <Button type="submit" disabled={loading}>
-            {editingId ? "Update Ad" : "Add Ad"}
-          </Button>
+            Add Ad
+          </button>
         </div>
-      </form>
+      </div>
 
-      {/* 📋 Display all ads */}
-      <div className="grid md:grid-cols-2 gap-5">
-        {ads.map((ad) => (
-          <motion.div
-            key={ad.id}
-            className="border rounded-lg p-4 shadow-sm bg-white"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <h3 className="font-semibold text-orange-600">{ad.title}</h3>
-            <p className="text-sm text-gray-500 mb-2">{ad.zone}</p>
-            <div
-              className="border p-2 bg-gray-50 text-xs text-gray-600 overflow-auto h-28 rounded"
-              dangerouslySetInnerHTML={{ __html: ad.ad_code }}
-            />
-            <div className="flex justify-between mt-3 text-sm">
-              <button onClick={() => handleEdit(ad)} className="text-blue-600 hover:underline">
-                Edit
-              </button>
-              <button onClick={() => handleDelete(ad.id)} className="text-red-600 hover:underline">
-                Delete
-              </button>
-            </div>
-          </motion.div>
-        ))}
+      {/* 📋 Ad Table */}
+      <div className="overflow-x-auto bg-white shadow rounded-lg border border-orange-100">
+        <table className="w-full text-left">
+          <thead className="bg-orange-50 text-orange-800">
+            <tr>
+              <th className="p-3">Zone</th>
+              <th className="p-3">Created</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ads.map((ad) => (
+              <tr
+                key={ad.id}
+                className="border-t border-gray-100 hover:bg-orange-50 transition"
+              >
+                <td className="p-3">{ad.zone_name}</td>
+                <td className="p-3 text-sm text-gray-500">
+                  {new Date(ad.created_at).toLocaleString()}
+                </td>
+                <td className="p-3">
+                  <button
+                    onClick={() => toggleAdStatus(ad.id, ad.is_active)}
+                    className={`px-3 py-1 rounded text-sm font-medium ${
+                      ad.is_active
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {ad.is_active ? "Active" : "Inactive"}
+                  </button>
+                </td>
+                <td className="p-3 flex gap-3">
+                  <button
+                    onClick={() => deleteAd(ad.id)}
+                    className="text-red-500 hover:text-red-700 text-sm"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {ads.length === 0 && (
+          <p className="p-4 text-center text-gray-500">
+            No ads yet. Add one above.
+          </p>
+        )}
       </div>
     </div>
   );
 }
-
