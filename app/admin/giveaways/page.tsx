@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
 import PrizeMediaUpload from "@/components/admin/PrizeMediaUpload";
 import { logAdminActivity } from "@/lib/logAdminActivity";
@@ -43,7 +43,6 @@ export default function AdminGiveawaysPage() {
     const payload = { ...form };
 
     if (editingId) {
-      // Update existing
       const { error } = await supabase
         .from("giveaways")
         .update(payload)
@@ -54,7 +53,6 @@ export default function AdminGiveawaysPage() {
         toast.success("Giveaway updated!");
       }
     } else {
-      // Create new
       const { error } = await supabase.from("giveaways").insert([payload]);
       if (error) toast.error("Error creating giveaway");
       else {
@@ -89,6 +87,35 @@ export default function AdminGiveawaysPage() {
       end_date: g.end_date,
     });
     setEditingId(g.id);
+  }
+
+  // ✅ NEW — Trigger backend announcement + notifications
+  async function announceWinner(giveawayId: string, winnerId: string, adminId: string) {
+    if (!winnerId) {
+      toast.error("No winner selected yet for this giveaway.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/award", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ giveawayId, winnerId, adminId }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.error || "Failed to announce winner");
+        return;
+      }
+
+      await logAdminActivity("announce_winner", `Announced winner for giveaway ID: ${giveawayId}`);
+      toast.success("🎉 Winner announced! Notifications sent to all activated users.");
+      fetchGiveaways();
+    } catch (err) {
+      console.error("announceWinner error:", err);
+      toast.error("Something went wrong while announcing the winner.");
+    }
   }
 
   return (
@@ -146,7 +173,13 @@ export default function AdminGiveawaysPage() {
                   {new Date(g.start_date).toLocaleDateString()} →{" "}
                   {new Date(g.end_date).toLocaleDateString()}
                 </p>
+                {g.winner_id && (
+                  <p className="text-green-600 text-sm mt-1">
+                    🏆 Winner selected: <strong>{g.winner_id}</strong>
+                  </p>
+                )}
               </div>
+
               <div className="flex gap-2">
                 <Button onClick={() => startEdit(g)} variant="secondary">
                   Edit
@@ -154,6 +187,16 @@ export default function AdminGiveawaysPage() {
                 <Button onClick={() => handleDelete(g.id)} variant="destructive">
                   Delete
                 </Button>
+
+                {/* ✅ New Winner Announce button */}
+                {g.winner_id && (
+                  <Button
+                    onClick={() => announceWinner(g.id, g.winner_id, "admin-system")}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Announce Winner
+                  </Button>
+                )}
               </div>
             </div>
 
