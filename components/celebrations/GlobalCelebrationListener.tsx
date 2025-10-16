@@ -1,32 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import WinnerCelebration from "./WinnerCelebration";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import WinnerCelebration from "./WinnerCelebration";
 
-export default function GlobalCelebrationListener() {
+export default function GlobalCelebrationListener({
+  userRole,
+}: {
+  userRole?: "admin" | "supervisor" | "activated" | "guest";
+}) {
   const supabase = createClientComponentClient();
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [winnerInfo, setWinnerInfo] = useState<any>(null);
+  const [celebrationData, setCelebrationData] = useState<{
+    giveawayTitle: string;
+    winnerName: string;
+    prizeImage?: string | null;
+  } | null>(null);
+
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const channel = supabase
-      .channel("global-winner-updates")
+      .channel("winner-announcements")
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "giveaways",
-          filter: "status=eq.finalized",
-        },
-        (payload) => {
-          console.log("🎉 Winner finalized event:", payload);
-          setWinnerInfo(payload.new);
-          setShowConfetti(true);
+        { event: "INSERT", schema: "public", table: "giveaway_winner_logs" },
+        async (payload) => {
+          const giveawayId = payload.new.giveaway_id;
+          const { data: giveaway } = await supabase
+            .from("giveaways")
+            .select("title, prize_image")
+            .eq("id", giveawayId)
+            .single();
+          const { data: winner } = await supabase
+            .from("user_profiles")
+            .select("full_name")
+            .eq("id", payload.new.user_id)
+            .single();
 
-          // Auto hide confetti after 10 seconds
-          setTimeout(() => setShowConfetti(false), 10000);
+          if (giveaway && winner) {
+            setCelebrationData({
+              giveawayTitle: giveaway.title,
+              winnerName: winner.full_name,
+              prizeImage: giveaway.prize_image,
+            });
+            setVisible(true);
+          }
         }
       )
       .subscribe();
@@ -34,26 +52,18 @@ export default function GlobalCelebrationListener() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []);
 
-  if (!showConfetti) return null;
+  if (!celebrationData) return null;
 
   return (
-    <>
-      <WinnerCelebration />
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-black/50 text-white z-50">
-        <h1 className="text-4xl font-bold mb-4 animate-bounce">🎉 We Have a Winner! 🎉</h1>
-        {winnerInfo && (
-          <div className="text-center space-y-2">
-            <p className="text-xl font-semibold">{winnerInfo.title}</p>
-            <p className="text-md opacity-90">
-              {winnerInfo.winner_name
-                ? `Winner: ${winnerInfo.winner_name}`
-                : "Winner details are hidden for guests."}
-            </p>
-          </div>
-        )}
-      </div>
-    </>
+    <WinnerCelebration
+      giveawayTitle={celebrationData.giveawayTitle}
+      winnerName={celebrationData.winnerName}
+      prizeImage={celebrationData.prizeImage}
+      visible={visible}
+      userRole={userRole}
+      onClose={() => setVisible(false)}
+    />
   );
 }
