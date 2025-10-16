@@ -66,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             >
               <div className="bg-white shadow-lg rounded-2xl p-3 flex items-center gap-3 border border-gray-200 max-w-sm w-full mx-3">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">Install SolarizedNG</h3>
+                  <h3 className="font-semibold text-gray-900">Install MyGiveAway</h3>
                   <p className="text-xs text-gray-500">
                     Join, Win, and track GiveAways that Delight's You & Support's Charity.
                   </p>
