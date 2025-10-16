@@ -1,0 +1,29 @@
+name: Brand Rename (SolarizedNG → MyGiveAway)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run brand rename script
+        run: |
+          node scripts/rename-branding.js
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add .
+          git commit -m "Automated brand rename: SolarizedNG → MyGiveAway" || echo "No changes to commit"
+          git push
