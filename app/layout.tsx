@@ -8,6 +8,7 @@ import "@/styles/globals.css";
 import NotificationListener from "@/components/notifications/NotificationListener";
 import { ToastWrapper } from "@/components/ui/use-toast";
 import ProgressBarProvider from "@/components/ui/ProgressBarProvider";
+import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener"; // ✅ NEW
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -59,11 +60,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
         <ProgressBarProvider>
           <ToastWrapper>
+            {/* Notifications & realtime global celebration */}
             <NotificationListener />
+            <GlobalCelebrationListener userRole="guest" /> {/* ✅ Added here */}
+
+            {/* Page Content */}
             <main>{children}</main>
           </ToastWrapper>
         </ProgressBarProvider>
 
+        {/* Subtle install prompt */}
         <AnimatePresence>
           {showInstallPrompt && (
             <motion.div
