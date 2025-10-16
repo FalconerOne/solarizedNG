@@ -8,38 +8,61 @@ import { useToast } from "@/components/ui/use-toast";
 export default function NotificationListener() {
   const supabase = createClientComponentClient();
   const user = useUser();
-  const { showToast } = useToast();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!user) return;
 
-    // Listen for new notifications in realtime
-    const channel = supabase
-      .channel("live-notifications")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications" },
-        (payload) => {
-          const notif = payload.new;
-          if (notif.user_id === user.id) {
-            // Trigger toast based on notification type
-            let variant: "success" | "error" | "info" | "warning" = "info";
+    // 🔹 Fetch user profile to check activation
+    const checkUserStatus = async () => {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("is_active, role")
+        .eq("id", user.id)
+        .single();
 
-            if (notif.type === "join") variant = "success";
-            else if (notif.type === "like") variant = "info";
-            else if (notif.type === "referral") variant = "success";
-            else if (notif.type === "warning") variant = "warning";
-            else if (notif.type === "error") variant = "error";
+      if (error) {
+        console.error("User status check failed:", error.message);
+        return;
+      }
 
-            showToast(notif.message || "New activity update!", variant);
+      // Subscribe to realtime notifications only for active users or admins
+      const channel = supabase
+        .channel("realtime:notifications")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications" },
+          (payload) => {
+            // Ignore for inactive or guest users
+            if (
+              data?.is_active === false &&
+              data?.role !== "admin" &&
+              data?.role !== "supervisor"
+            ) {
+              console.log("🔕 Inactive user — skipping live notification.");
+              return;
+            }
+
+            // Ensure it's for this specific user
+            if (payload.new.user_id !== user.id) return;
+
+            // 🔔 Display real-time toast notification
+            toast({
+              title: "🔔 New Notification",
+              description: payload.new.message,
+              className: "bg-indigo-600 text-white",
+              duration: 5000,
+            });
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
+
+    checkUserStatus();
   }, [user]);
 
   return null;
