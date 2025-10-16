@@ -1,4 +1,4 @@
-name: Repo Snapshots (Auto + Manual + Nightly)
+name: Repo Snapshots (Auto + Manual + Nightly + Issue Logs)
 
 on:
   push:
@@ -79,13 +79,10 @@ jobs:
       - name: Confirm snapshot creation
         run: echo "🎉 Snapshot (${{ steps.type.outputs.type }}) created successfully"
 
-      - name: Cleanup old snapshots (keep last 20)
-        if: ${{ steps.type.outputs.type == 'nightly' }}
+      - name: Create GitHub Issue Log
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "🧹 Cleaning up older snapshots..."
-          git fetch --tags
-          TAGS=$(git tag -l "nightly-snapshot-*" | sort -r | tail -n +21)
-          for TAG in $TAGS; do
-            echo "Deleting old tag: $TAG"
-            git push origin :refs/tags/$TAG || true
-          done
+          SNAP_TYPE="${{ steps.type.outputs.type }}"
+          TAG="${{ s
