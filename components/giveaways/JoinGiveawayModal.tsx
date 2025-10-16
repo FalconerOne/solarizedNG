@@ -53,6 +53,19 @@ const { error: insertError } = await supabase.from("giveaway_participants").inse
   },
 ]);
 
+      // Send real-time notification to admin(s)
+import { sendNotification } from "@/lib/sendNotification";
+
+if (!insertError) {
+  await sendNotification({
+    type: "giveaway_join",
+    title: "New Giveaway Join",
+    message: `${user?.full_name || "A user"} just joined the giveaway "${giveaway.title}"`,
+    target_user: "admin",
+    reference_id: giveaway.id,
+  });
+}
+
 if (insertError) throw insertError;
 
 // ✅ Notify admins in real time
