@@ -12,6 +12,7 @@ import ReferralsPanel from "@/components/dashboard/ReferralsPanel";
 import PrizeClaimPanel from "@/components/dashboard/PrizeClaimPanel";
 import LeaderboardEnhanced from "@/components/dashboard/LeaderboardEnhanced";
 import AdminTrueCounts from "@/components/dashboard/AdminTrueCounts";
+import WinnerCelebration from "@/components/WinnerCelebration";
 
 interface Ad {
   id: string;
@@ -33,8 +34,17 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [username, setUsername] = useState<string>("User");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isActivated, setIsActivated] = useState<boolean>(false);
 
-  // ✅ Fetch user info, ads, and logs
+  // 🎉 Winner Celebration Popup
+  const [showWinner, setShowWinner] = useState(false);
+  const [winnerData, setWinnerData] = useState({
+    giveawayTitle: "",
+    winnerName: "",
+    prizeImage: null as string | null,
+    isVisibleToUser: false,
+  });
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       const {
@@ -44,7 +54,7 @@ export default function DashboardPage() {
       const userId = session?.user?.id;
       const userEmail = session?.user?.email;
 
-      // ✅ Check admin (temporary rule: by email)
+      // ✅ Check admin by email domain
       if (
         userEmail &&
         (userEmail.endsWith("@solarizesolutions.com.ng") ||
@@ -53,30 +63,31 @@ export default function DashboardPage() {
         setIsAdmin(true);
       }
 
-      // Fetch username
+      // ✅ Fetch username & activation
       if (userId) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("username")
+          .select("username, activated")
           .eq("id", userId)
           .single();
 
         if (profile?.username) setUsername(profile.username);
+        if (profile?.activated) setIsActivated(true);
       }
 
-      // Fetch active ads
+      // ✅ Fetch active ads
       const { data: adsData } = await supabase
         .from("adzone")
         .select("*")
         .eq("status", "active");
 
-      if (adsData && adsData.length > 0) {
+      if (adsData?.length) {
         setAds(adsData);
         const randomAd = adsData[Math.floor(Math.random() * adsData.length)];
         setActiveAd(randomAd);
       }
 
-      // Fetch activity logs (limit to 5)
+      // ✅ Fetch recent activities
       if (userId) {
         const { data: actData } = await supabase
           .from("activity_log")
@@ -91,6 +102,55 @@ export default function DashboardPage() {
 
     fetchDashboardData();
   }, []);
+
+  // 🧠 Listen for giveaway winner events (Realtime)
+  useEffect(() => {
+    const subscription = supabase
+      .channel("giveaway-winner-updates")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "giveaway_winner_logs" },
+        async (payload) => {
+          const { giveaway_id, winner_user_id } = payload.new;
+
+          // Fetch giveaway details
+          const { data: giveaway } = await supabase
+            .from("giveaways")
+            .select("title, prize_image, activation_fee")
+            .eq("id", giveaway_id)
+            .single();
+
+          if (!giveaway) return;
+
+          // Fetch winner info
+          const { data: winner } = await supabase
+            .from("profiles")
+            .select("username")
+            .eq("id", winner_user_id)
+            .single();
+
+          // 🔍 Visibility Logic
+          const canSeeWinner =
+            isAdmin ||
+            isActivated ||
+            (giveaway.activation_fee === 0 && winner_user_id);
+
+          setWinnerData({
+            giveawayTitle: giveaway.title,
+            winnerName: winner?.username || "Anonymous User",
+            prizeImage: giveaway.prize_image || null,
+            isVisibleToUser: !!canSeeWinner,
+          });
+
+          setShowWinner(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [isAdmin, isActivated]);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 to-white py-10 px-6">
@@ -110,10 +170,7 @@ export default function DashboardPage() {
           </p>
         </motion.div>
 
-        {/* 💎 Points */}
         <PointsDisplay />
-
-        {/* 🟠 Mid-section Ad */}
         {activeAd && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -151,16 +208,10 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* 🏆 Leaderboard */}
         <LeaderboardEnhanced />
-
-        {/* 🤝 Referrals */}
         <ReferralsPanel />
-
-        {/* 🎁 Prize Claim */}
         <PrizeClaimPanel />
 
-        {/* 🕓 Activity Log */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -191,7 +242,6 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* 🧭 ADMIN DASHBOARD SECTION */}
         {isAdmin && (
           <motion.section
             initial={{ opacity: 0, y: 15 }}
@@ -232,6 +282,16 @@ export default function DashboardPage() {
           </motion.section>
         )}
       </div>
+
+      {/* 🎉 Winner Celebration Popup */}
+      <WinnerCelebration
+        visible={showWinner}
+        onClose={() => setShowWinner(false)}
+        giveawayTitle={winnerData.giveawayTitle}
+        winnerName={winnerData.winnerName}
+        prizeImage={winnerData.prizeImage}
+        isVisibleToUser={winnerData.isVisibleToUser}
+      />
     </main>
   );
 }
