@@ -1,47 +1,48 @@
-name: 🧹 Repo Snapshot Cleaner
+name: 🧹 Repo Snapshot Cleaner (Silent Safe Mode)
 
 on:
   schedule:
-    # Runs every Sunday at 03:00 UTC
-    - cron: "0 3 * * 0"
+    # Runs every Sunday at 00:00 UTC
+    - cron: "0 0 * * 0"
   workflow_dispatch:
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
-    name: Clean Old Snapshots
+    name: Clean Old Snapshots Safely
 
     steps:
       - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Git identity
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
 
-      - name: Delete old snapshot tags
+      - name: Delete old snapshot tags (ignore missing)
         run: |
-          echo "🧹 Checking for old snapshot tags..."
+          echo "🧹 Checking old snapshot tags..."
           git fetch --tags
           TAGS=$(git tag -l "*snapshot*" | sort -r | tail -n +11)
           for TAG in $TAGS; do
             echo "Deleting old tag: $TAG"
-            git push origin :refs/tags/$TAG || echo "⚠️ Skipped tag: $TAG (not found)"
+            git push origin :refs/tags/$TAG || true
           done
 
-      - name: Delete old snapshot branches
+      - name: Delete old snapshot branches (ignore missing)
         run: |
-          echo "🧹 Checking for old snapshot branches..."
-          BRANCHES=$(git branch -r | grep "origin/.*snapshot.*" | sed 's/origin\///' | sort -r | tail -n +11)
+          echo "🧹 Checking old snapshot branches..."
+          git fetch origin +refs/heads/*:refs/remotes/origin/*
+          BRANCHES=$(git branch -r | grep "origin/.*snapshot.*" | sed 's|origin/||' | sort -r | tail -n +11)
           for BRANCH in $BRANCHES; do
             echo "Deleting old branch: $BRANCH"
-            git push origin --delete "$BRANCH" || echo "⚠️ Skipped branch: $BRANCH (not found)"
+            git push origin --delete "$BRANCH" || true
           done
 
-      - name: Append cleanup record to snapshot log
+      - name: Update snapshot log
         run: |
           DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           echo "- Cleanup completed at $DATE — kept last 10 snapshots." >> snapshot-log.md
@@ -49,5 +50,5 @@ jobs:
       - name: Commit and push log update
         run: |
           git add snapshot-log.md
-          git commit -m "Auto-cleanup: kept last 10 snapshots" || echo "No changes to commit"
-          git push
+          git commit -m "Auto-cleanup: kept last 10 snapshots" || true
+          git push || true
