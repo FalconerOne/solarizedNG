@@ -1,5 +1,6 @@
 {
-  "name": "solarizedng-giveaway",
+  {
+  "name": "mygiveaway",
   "version": "1.0.0",
   "private": true,
   "scripts": {
