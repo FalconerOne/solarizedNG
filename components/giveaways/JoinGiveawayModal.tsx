@@ -78,14 +78,25 @@ await notifyAdminOnJoin(giveaway.id, userId);
       if (insertError) throw insertError;
 
       // Log activity
-      await supabase.from("activity_log").insert([
-        {
-          user_id: userId,
-          activity_type: "join_giveaway",
-          details: `Joined giveaway: ${giveaway.title}`,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+await supabase.from("activity_log").insert([
+  {
+    user_id: userId,
+    activity_type: "join_giveaway",
+    details: `Joined giveaway: ${giveaway.title}`,
+    created_at: new Date().toISOString(),
+  },
+]);
+
+      // Send notification to admin
+import { sendNotification } from "@/lib/sendNotification";
+
+await sendNotification({
+  type: "new_join",
+  title: "New Giveaway Join",
+  message: `${giveaway.title} has a new participant.`,
+  target_user: "admin",
+  reference_id: giveaway.id,
+});
 
       // ✅ Trigger admin notification
       await notifyAdminOnJoin(giveaway.id, userId);
