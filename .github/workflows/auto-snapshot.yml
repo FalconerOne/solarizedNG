@@ -1,48 +1,34 @@
-name: 🪄 Auto Snapshot Before Deploy (Enhanced)
+name: Auto Snapshot
 
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'README.md'
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/workflows/snapshot.yml'
+      - '.github/ISSUE_TEMPLATE/**'
 
 jobs:
-  create-snapshot:
-    name: Create and Manage Snapshot Tags
+  snapshot:
+    name: Create Auto Snapshot
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # needed for full tag history
 
-      - name: Set up Git identity
+      - name: Create timestamp
+        id: timestamp
+        run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Create snapshot branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          SNAPSHOT_BRANCH="auto-snapshot-${{ steps.timestamp.outputs.timestamp }}"
+          git checkout -b "$SNAPSHOT_BRANCH"
+          git push origin "$SNAPSHOT_BRANCH"
 
-      - name: Generate tag info
-        id: tag
-        run: |
-          TIMESTAMP=$(date +"%Y-%m-%d-%H%M%S")
-          TAG="repo-snapshot-${TIMESTAMP}"
-
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          AUTHOR=$(git log -1 --pretty=%an)
-          DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-          SNAPSHOT_NOTE="📸 Auto snapshot before deploy
-          Commit: ${COMMIT_MSG}
-          Author: ${AUTHOR}
-          Date: ${DATE}"
-
-          echo "TAG=${TAG}" >> $GITHUB_ENV
-          echo "SNAPSHOT_NOTE<<EOF" >> $GITHUB_ENV
-          echo "${SNAPSHOT_NOTE}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-          echo "Creating snapshot tag: ${TAG}"
-
-      - name: Create and push tag with note
-        run: |
-          git tag -a "${TAG}" -m
+      - name: Log confirmation
+        run: echo "✅ Auto snapshot branch created: auto-snapshot-${{ steps.timestamp.outputs.timestamp }}"
