@@ -76,6 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </motion.div>
           )}
         </AnimatePresence>
+        <NotificationListener />
       </body>
     </html>
   );
