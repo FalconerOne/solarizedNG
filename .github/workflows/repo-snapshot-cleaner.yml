@@ -1,0 +1,89 @@
+name: 🧹 Repo Snapshot Cleaner (Auto Maintenance)
+
+on:
+  schedule:
+    # Runs every Sunday at 03:00 UTC
+    - cron: "0 3 * * 0"
+
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Number of most recent snapshots to keep"
+        required: false
+        default: "10"
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set retention count
+        id: retention
+        run: |
+          KEEP="${{ github.event.inputs.keep }}"
+          if [[ -z "$KEEP" ]]; then
+            KEEP=10
+          fi
+          echo "keep=$KEEP" >> $GITHUB_OUTPUT
+
+      - name: List all snapshot tags
+        id: tags
+        run: |
+          git fetch --tags
+          TAGS=$(git tag --list "auto-snapshot-*" --sort=-creatordate)
+          echo "$TAGS" > tags.txt
+          echo "Found tags:"
+          cat tags.txt
+
+      - name: Delete older tags beyond retention
+        run: |
+          KEEP=${{ steps.retention.outputs.keep }}
+          COUNT=0
+          while read TAG; do
+            COUNT=$((COUNT + 1))
+            if [ $COUNT -gt $KEEP ]; then
+              echo "🗑️ Deleting old tag: $TAG"
+              git push --delete origin "$TAG" || true
+              git tag -d "$TAG" || true
+            fi
+          done < tags.txt
+
+      - name: Delete old snapshot branches
+        run: |
+          git fetch origin
+          SNAP_BRANCHES=$(git branch -r | grep "origin/auto-snapshot-" || true)
+          COUNT=0
+          echo "$SNAP_BRANCHES" | while read BR; do
+            COUNT=$((COUNT + 1))
+            if [ $COUNT -gt $KEEP ]; then
+              CLEANED=$(echo "$BR" | sed 's|origin/||')
+              echo "🗑️ Deleting branch: $CLEANED"
+              git push origin --delete "$CLEANED" || true
+            fi
+          done
+
+      - name: Trim snapshot log file (if exists)
+        run: |
+          if [ -f snapshot-log.md ]; then
+            echo "Trimming snapshot-log.md to last ${{ steps.retention.outputs.keep }} entries..."
+            head -n $(( ${{ steps.retention.outputs.keep }} * 5 )) snapshot-log.md > snapshot-log-trimmed.md || true
+            mv snapshot-log-trimmed.md snapshot-log.md
+            git config user.name "GitHub Action"
+            git config user.email "actions@github.com"
+            git add snapshot-log.md
+            git commit -m "🧹 Cleaned old snapshot logs (kept latest ${{ steps.retention.outputs.keep }})" || echo "No changes to commit"
+            git push || true
+          else
+            echo "No snapshot-log.md found — skipping log cleanup."
+          fi
+
+      - name: Done
+        run: echo "✅ Snapshot cleanup complete. Old tags, branches, and logs pruned successfully."
