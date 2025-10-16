@@ -1,34 +1,20 @@
-name: Repo Snapshots (Auto + Manual + Nightly + Logs + Safety)
+name: Auto Repo Snapshot
 
 on:
-  push:
-    branches:
-      - main
-      - production
-
   workflow_dispatch:
     inputs:
       label:
-        description: "Optional label or reason for manual snapshot (e.g. before update)"
+        description: "Optional snapshot label (e.g. 'pre-deploy', 'backup')"
         required: false
         default: "manual"
-
   schedule:
-    # Runs every night at 23:30 UTC
-    - cron: "30 23 * * *"
-
-concurrency:
-  group: repo-snapshot-${{ github.ref }}
-  cancel-in-progress: false
-
-permissions:
-  contents: write
-  issues: write
+    - cron: "0 0 * * *" # Runs every day at midnight UTC
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    name: Create Snapshot (Auto/Manual/Nightly + Logs)
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -36,23 +22,49 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate timestamp
-        id: time
-        run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-
-      - name: Determine snapshot type
+      - name: Generate snapshot type
         id: type
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+          if [ "${{ github.event_name }}" = "schedule" ]; then
             echo "type=nightly" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "type=manual" >> $GITHUB_OUTPUT
           else
-            echo "type=auto" >> $GITHUB_OUTPUT
+            echo "type=manual" >> $GITHUB_OUTPUT
           fi
 
-      - name: Compute label
+      - name: Compute label safely
         id: label
+        shell: bash
         run: |
-          INPUT_LABEL="${{ github.event.inputs.label }}"
-          if [[ -z "$INPUT_LABE_]()]()
+          INPUT_LABEL="${{ github.event.inputs.label || '' }}"
+          LABEL="${INPUT_LABEL:-${{ steps.type.outputs.type }}}"
+          SAFE_LABEL=$(echo "$LABEL" | sed 's/[^[:alnum:]_-]//g')
+          echo "safe_label=$SAFE_LABEL" >> $GITHUB_OUTPUT
+
+      - name: Create snapshot tag and log entry
+        id: snapshot
+        run: |
+          SNAPSHOT_FILE="snapshot-log.md"
+          DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          TAG="snapshot-${DATE//[^a-zA-Z0-9]/-}-${{ steps.label.outputs.safe_label }}"
+          
+          echo "## 📦 Snapshot - $DATE" >> "$SNAPSHOT_FILE"
+          echo "- Commit: $SHORT_HASH" >> "$SNAPSHOT_FILE"
+          echo "- Label: ${{ steps.label.outputs.safe_label }}" >> "$SNAPSHOT_FILE"
+          echo "- Type: ${{ steps.type.outputs.type }}" >> "$SNAPSHOT_FILE"
+          echo "" >> "$SNAPSHOT_FILE"
+
+          echo "Snapshot created: $TAG"
+          echo "snapshot_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Commit snapshot log
+        run: |
+          git config user.name "FalconerOne"
+          git config user.email "actions@github.com"
+          git add snapshot-log.md
+          git commit -m "Auto Repo Snapshot: ${{ steps.label.outputs.safe_label }}" || echo "No changes to commit"
+          git push
+
+      - name: Confirm snapshot completion
+        run: |
+          echo "✅ Snapshot created successfully for label: ${{ steps.label.outputs.safe_label }}"
