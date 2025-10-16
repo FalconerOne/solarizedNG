@@ -4,12 +4,13 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/components/ui/use-toast";
 
 export default function RecentWinners() {
   const [winners, setWinners] = useState<any[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch winners from the database
+  // Fetch winners from Supabase
   async function fetchWinners() {
     const { data, error } = await supabase
       .from("winners")
@@ -21,21 +22,39 @@ export default function RecentWinners() {
     else setWinners(data || []);
   }
 
-  // Set up live polling and realtime updates
+  // Live updates & auto-refresh
   useEffect(() => {
-    fetchWinners(); // initial load
+    fetchWinners();
 
-    // Setup realtime listener
+    // Realtime listener for new winners
     const channel = supabase
       .channel("winners_feed")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "winners" },
-        () => fetchWinners()
+        { event: "INSERT", schema: "public", table: "winners" },
+        async (payload) => {
+          const newWinner = payload.new;
+
+          // Fetch giveaway info
+          const { data: giveaway } = await supabase
+            .from("giveaways")
+            .select("title, prize")
+            .eq("id", newWinner.giveaway_id)
+            .single();
+
+          toast({
+            title: "🎉 New Winner!",
+            description: `${newWinner.user_name} just won a ${giveaway?.prize || "prize"} in “${
+              giveaway?.title || "Giveaway"
+            }”!`,
+          });
+
+          fetchWinners(); // refresh list
+        }
       )
       .subscribe();
 
-    // Refresh every 60s if tab is active
+    // Refresh every 60 seconds if tab visible
     function startPolling() {
       if (!intervalRef.current) {
         intervalRef.current = setInterval(() => {
@@ -48,7 +67,7 @@ export default function RecentWinners() {
 
     startPolling();
 
-    // Stop polling if page hidden
+    // Handle tab visibility
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible" && intervalRef.current) {
         clearInterval(intervalRef.current);
