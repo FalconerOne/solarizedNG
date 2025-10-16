@@ -2,19 +2,36 @@ name: Manual Repo Snapshot
 
 on:
   workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label or reason for snapshot (e.g. before major update)'
+        required: false
+        default: 'manual'
 
 jobs:
-  backup:
+  manual-snapshot:
     runs-on: ubuntu-latest
+    name: Create Manual Snapshot
+
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Generate timestamp
+        id: time
+        run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
       - name: Create snapshot branch
         run: |
-          SNAPSHOT_BRANCH="snapshot-$(date +'%Y%m%d-%H%M%S')"
-          git checkout -b "$SNAPSHOT_BRANCH"
-          git push origin "$SNAPSHOT_BRANCH"
+          LABEL=${{ github.event.inputs.label }}
+          BRANCH_NAME="manual-snapshot-${LABEL}-${{ steps.time.outputs.timestamp }}"
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
+          echo "✅ Created branch: $BRANCH_NAME"
 
-      - name: Confirm snapshot
-        run: echo "✅ Snapshot created successfully on branch $SNAPSHOT_BRANCH"
+      - name: Create snapshot tag
+        run: |
+          TAG_NAME="snapshot-${{ github.event.inputs.label }}-${{ steps.time.outputs.timestamp }}"
+          git tag -a "$TAG_NAME" -m "Manual snapshot: $TAG_NAME"
+          git push origin "$TAG_NAME"
+          ec
