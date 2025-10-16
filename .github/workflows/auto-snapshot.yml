@@ -1,34 +1,43 @@
-name: Auto Snapshot
+name: Auto Repo Snapshot
 
 on:
   push:
     branches:
       - main
-    paths-ignore:
-      - 'README.md'
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/workflows/snapshot.yml'
-      - '.github/ISSUE_TEMPLATE/**'
+      - production
+  workflow_dispatch:
 
 jobs:
-  snapshot:
-    name: Create Auto Snapshot
+  auto-snapshot:
     runs-on: ubuntu-latest
+    name: Auto Snapshot on Commit
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for full commit/tag context
 
-      - name: Create timestamp
-        id: timestamp
+      - name: Generate timestamp
+        id: time
         run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Prepare branch name
+        id: branch
+        run: |
+          BRANCH_NAME="auto-snapshot-${{ github.run_number }}-${{ steps.time.outputs.timestamp }}"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
       - name: Create snapshot branch
         run: |
-          SNAPSHOT_BRANCH="auto-snapshot-${{ steps.timestamp.outputs.timestamp }}"
-          git checkout -b "$SNAPSHOT_BRANCH"
-          git push origin "$SNAPSHOT_BRANCH"
+          git checkout -b "${{ steps.branch.outputs.branch_name }}"
+          git push origin "${{ steps.branch.outputs.branch_name }}" || echo "⚠️ Branch push skipped (already exists)"
 
-      - name: Log confirmation
-        run: echo "✅ Auto snapshot branch created: auto-snapshot-${{ steps.timestamp.outputs.timestamp }}"
+      - name: Create snapshot tag
+        run: |
+          TAG_NAME="auto-${{ github.run_number }}-${{ steps.time.outputs.timestamp }}"
+          git tag -a "$TAG_NAME" -m "Auto snapshot created on push"
+          git push origin "$TAG_NAME" || echo "⚠️ Tag push skipped (already exists)"
+
+      - name: Log snapshot creation
+        run: echo "✅ Auto snapshot branch + tag created successfully"
