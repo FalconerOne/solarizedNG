@@ -1,111 +1,168 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import React, { useEffect, useState } from "react";
+import { createClient } from "@/supabase/analytics";
+import WinnerCelebration from "@/components/celebrations/WinnerCelebration";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
-export default function AdminAnalyticsPage() {
-  const supabase = createClientComponentClient();
-  const [data, setData] = useState<any[]>([]);
-  const [giveaways, setGiveaways] = useState<any[]>([]);
-  const [selectedGiveaway, setSelectedGiveaway] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+type Giveaway = {
+  id: string;
+  title: string;
+};
 
+type DailyStat = {
+  date: string;
+  participants: number;
+  views: number;
+  referrals: number;
+  likes: number;
+  winner_user_id?: string | null;
+  winner_name?: string | null;
+};
+
+const AdminAnalyticsPage: React.FC = () => {
+  const supabase = createClient();
+  const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
+  const [selectedGiveaway, setSelectedGiveaway] = useState<string>("");
+  const [stats, setStats] = useState<DailyStat[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [userRole, setUserRole] = useState<"admin" | "supervisor" | "activated" | "guest">("guest");
+
+  // Load user role for visibility rule
   useEffect(() => {
-    fetchGiveaways();
-    fetchAnalytics();
-    const interval = setInterval(() => fetchAnalytics(), 300000); // Auto-refresh every 5 minutes
-    return () => clearInterval(interval);
-  }, [selectedGiveaway, startDate, endDate]);
+    const fetchRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return setUserRole("guest");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, activated")
+        .eq("id", user.id)
+        .single();
+      if (profile?.role === "admin") setUserRole("admin");
+      else if (profile?.role === "supervisor") setUserRole("supervisor");
+      else if (profile?.activated) setUserRole("activated");
+      else setUserRole("guest");
+    };
+    fetchRole();
+  }, []);
 
-  const fetchGiveaways = async () => {
-    const { data: gData } = await supabase
-      .from("giveaways")
-      .select("id, title")
-      .order("created_at", { ascending: false });
-    if (gData) setGiveaways(gData);
-  };
+  // Load giveaways for dropdown
+  useEffect(() => {
+    const loadGiveaways = async () => {
+      const { data } = await supabase
+        .from("giveaways")
+        .select("id, title")
+        .order("created_at", { ascending: false });
+      if (data) setGiveaways(data);
+    };
+    loadGiveaways();
+  }, []);
 
-  const fetchAnalytics = async () => {
-    let query = supabase
+  // Load daily stats
+  const loadStats = async (gid: string) => {
+    if (!gid) return;
+    setLoading(true);
+    const { data, error } = await supabase
       .from("giveaway_daily_stats")
-      .select("*")
+      .select("date, participants, views, referrals, likes, winner_user_id")
+      .eq("giveaway_id", gid)
       .order("date", { ascending: true });
 
-    if (selectedGiveaway !== "all") query = query.eq("giveaway_id", selectedGiveaway);
-    if (startDate) query = query.gte("date", startDate);
-    if (endDate) query = query.lte("date", endDate);
-
-    const { data: aData } = await query;
-    if (aData) {
-      setData(aData);
-      setLastUpdated(new Date());
+    if (!error && data) {
+      const withNames = await Promise.all(
+        data.map(async (s) => {
+          if (s.winner_user_id) {
+            const { data: winner } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", s.winner_user_id)
+              .single();
+            return { ...s, winner_name: winner?.full_name || "Anonymous" };
+          }
+          return s;
+        })
+      );
+      setStats(withNames);
     }
+    setLoading(false);
   };
+
+  // Detect and show confetti when winner appears
+  useEffect(() => {
+    const latest = stats[stats.length - 1];
+    if (latest?.winner_user_id) {
+      setShowConfetti(true);
+      const timeout = setTimeout(() => setShowConfetti(false), 8000);
+      return () => clearTimeout(timeout);
+    }
+  }, [stats]);
+
+  // Display for guest users per global rule
+  const isGuestView = userRole === "guest";
+  const visibleStats = isGuestView
+    ? stats.slice(0, Math.min(5, stats.length)).map((s) => ({
+        ...s,
+        participants: Math.floor(Math.random() * 60) + 1, // masked
+        winner_name: "Activate any GiveAway to view winners 🎁",
+      }))
+    : stats;
 
   return (
     <div className="p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>📊 Giveaway Analytics Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-center mb-6">
-            {/* Giveaway Filter */}
-            <select
-              value={selectedGiveaway}
-              onChange={(e) => setSelectedGiveaway(e.target.value)}
-              className="border p-2 rounded"
-            >
-              <option value="all">All Giveaways</option>
-              {giveaways.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
-            </select>
+      {showConfetti && <WinnerCelebration />}
 
-            {/* Date Range Filters */}
-            <div className="flex gap-2">
-              <label className="text-sm text-gray-500">From:</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border rounded p-2"
-              />
-              <label className="text-sm text-gray-500">To:</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="border rounded p-2"
-              />
-            </div>
+      <h1 className="text-2xl font-bold">Giveaway Analytics</h1>
 
-            {/* Refresh Indicator */}
-            {lastUpdated && (
-              <span className="text-xs text-gray-400 ml-auto">
-                Last updated: {lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
-          </div>
+      <div className="flex flex-wrap gap-4 items-center">
+        <Select
+          value={selectedGiveaway}
+          onValueChange={(val) => {
+            setSelectedGiveaway(val);
+            loadStats(val);
+          }}
+        >
+          <option value="">Select Giveaway</option>
+          {giveaways.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.title}
+            </option>
+          ))}
+        </Select>
 
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="participants" stroke="#3b82f6" name="Participants" />
-              <Line type="monotone" dataKey="entries" stroke="#10b981" name="Entries" />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        <Button onClick={() => loadStats(selectedGiveaway)} disabled={!selectedGiveaway || loading}>
+          {loading ? "Loading..." : "Refresh"}
+        </Button>
+      </div>
+
+      {visibleStats.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {visibleStats.map((stat) => (
+            <Card key={stat.date} className="rounded-2xl shadow-sm">
+              <CardContent className="p-4">
+                <p className="font-semibold text-sm">{new Date(stat.date).toDateString()}</p>
+                <p>👥 Participants: {stat.participants}</p>
+                <p>👁️ Views: {stat.views}</p>
+                <p>🔁 Referrals: {stat.referrals}</p>
+                <p>❤️ Likes: {stat.likes}</p>
+                {stat.winner_name && (
+                  <p className="mt-2 text-green-600 font-medium">🏆 Winner: {stat.winner_name}</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <p className="text-muted-foreground italic mt-4">
+          {selectedGiveaway
+            ? "No daily stats found yet for this giveaway."
+            : "Select a giveaway to view analytics."}
+        </p>
+      )}
     </div>
   );
-}
+};
+
+export default AdminAnalyticsPage;
