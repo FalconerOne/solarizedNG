@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import "@/styles/globals.css";
 import NotificationListener from "@/components/notifications/NotificationListener";
+import { ToastWrapper } from "@/components/ui/use-toast";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,10 +25,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
-      <ToastWrapper>
-  <NotificationListener />
-  {children}
-</ToastWrapper>
     };
   }, []);
 
@@ -45,15 +42,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <meta name="theme-color" content="#0f172a" />
+        <title>MyGiveAway</title>
         <meta
           name="description"
           content="Join, Win, and track GiveAways that Delight's You & Support's Charity."
         />
+        <meta name="theme-color" content="#0f172a" />
+        <meta property="og:title" content="MyGiveAway" />
+        <meta
+          property="og:description"
+          content="Join, Win, and track GiveAways that Delight's You & Support's Charity."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="/icons/icon-512x512.png" />
         <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
+
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
-        <main>{children}</main>
+        <ToastWrapper>
+          <NotificationListener />
+          <main>{children}</main>
+        </ToastWrapper>
 
         {/* Install Prompt (appears subtly at bottom-center) */}
         <AnimatePresence>
@@ -81,7 +92,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </motion.div>
           )}
         </AnimatePresence>
-        <NotificationListener />
       </body>
     </html>
   );
