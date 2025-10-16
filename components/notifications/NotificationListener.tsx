@@ -2,29 +2,37 @@
 
 import { useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useUser } from "@supabase/auth-helpers-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function NotificationListener() {
   const supabase = createClientComponentClient();
-  const { toast } = useToast();
+  const user = useUser();
+  const { showToast } = useToast();
 
   useEffect(() => {
+    if (!user) return;
+
+    // Listen for new notifications in realtime
     const channel = supabase
-      .channel("notifications-channel")
+      .channel("live-notifications")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-        },
+        { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
-          const newNotification = payload.new;
-          toast({
-            title: newNotification.title || "New Notification",
-            description: newNotification.message,
-            duration: 5000,
-          });
+          const notif = payload.new;
+          if (notif.user_id === user.id) {
+            // Trigger toast based on notification type
+            let variant: "success" | "error" | "info" | "warning" = "info";
+
+            if (notif.type === "join") variant = "success";
+            else if (notif.type === "like") variant = "info";
+            else if (notif.type === "referral") variant = "success";
+            else if (notif.type === "warning") variant = "warning";
+            else if (notif.type === "error") variant = "error";
+
+            showToast(notif.message || "New activity update!", variant);
+          }
         }
       )
       .subscribe();
@@ -32,7 +40,7 @@ export default function NotificationListener() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, toast]);
+  }, [user]);
 
   return null;
 }
