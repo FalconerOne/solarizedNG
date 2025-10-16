@@ -1,0 +1,52 @@
+name: Safe Repository Snapshot
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  deployment_status:
+    types: [success]
+
+jobs:
+  create-snapshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up timestamp
+        id: timestamp
+        run: echo "NOW=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+
+      - name: Ensure snapshot directory exists
+        run: mkdir -p .github/snapshots
+
+      - name: Create compressed snapshot
+        run: |
+          SNAP_NAME="snapshot_${{ env.NOW }}.zip"
+          git archive --format=zip --output=".github/snapshots/$SNAP_NAME" HEAD
+          echo "SNAPSHOT_FILE=$SNAP_NAME" >> $GITHUB_ENV
+
+      - name: Update or create snapshot log
+        run: |
+          LOG_FILE=".github/snapshot-log.md"
+          echo "## Snapshot Log" > tmp_log.md
+          echo "" >> tmp_log.md
+          echo "- **Snapshot:** [${{ env.SNAPSHOT_FILE }}](./snapshots/${{ env.SNAPSHOT_FILE }})" >> tmp_log.md
+          echo "  - **Created:** $(date '+%Y-%m-%d %H:%M:%S')" >> tmp_log.md
+          echo "  - **Commit:** $GITHUB_SHA" >> tmp_log.md
+          echo "" >> tmp_log.md
+          if [ -f "$LOG_FILE" ]; then
+            tail -n +2 "$LOG_FILE" >> tmp_log.md
+          fi
+          mv tmp_log.md "$LOG_FILE"
+
+      - name: Commit and push snapshot + log
+        run: |
+          git config user.name "GitHub Action Bot"
+          git config user.email "actions@github.com"
+          git add .github/snapshots .github/snapshot-log.md
+          git commit -m "Snapshot: ${{ env.SNAPSHOT_FILE }} (Auto)"
+          git push origin main
