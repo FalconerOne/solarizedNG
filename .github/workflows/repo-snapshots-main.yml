@@ -1,244 +1,45 @@
-name: Repo Snapshots (Auto + Manual + Nightly + Meta + Smart Cleanup)
+name: Repo Snapshots (Auto + Manual + Nightly + Log)
 
 on:
+  workflow_dispatch: # manual trigger
   push:
     branches:
       - main
-      - production
-
-  workflow_dispatch:
-    inputs:
-      label:
-        description: "Optional snapshot label (e.g. pre-deploy)"
-        required: false
-        default: "manual"
-
   schedule:
-    # nightly at 23:30 UTC
-    - cron: "30 23 * * *"
-
-permissions:
-  contents: write
-  actions: read
+    - cron: "0 1 * * *" # every day at 1:00 AM UTC
 
 jobs:
   snapshot:
-    name: Create & Maintain Snapshots
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository (full ref)
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate timestamps and env
-        id: ts
+      - name: Set up Git identity
         run: |
-          TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
-          ISO_TS=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          echo "ts=$TIMESTAMP" >> $GITHUB_OUTPUT
-          echo "iso_ts=$ISO_TS" >> $GITHUB_OUTPUT
+          git config --global user.email "snapshot-bot@solarizedng.com"
+          git config --global user.name "Solarized Snapshot Bot"
 
-      - name: Determine snapshot type (auto/manual/nightly)
-        id: type
+      - name: Create timestamp tag
+        id: create_tag
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "snap_type=nightly" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "snap_type=manual" >> $GITHUB_OUTPUT
-          else
-            echo "snap_type=auto" >> $GITHUB_OUTPUT
-          fi
+          TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+          TAG="auto-snapshot-${TIMESTAMP}"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          git tag -a "$TAG" -m "Snapshot created: $TAG"
+          git push origin "$TAG"
 
-      - name: Compute safe label
-        id: label
-        shell: bash
+      - name: Update snapshot log
         run: |
-          INPUT_LABEL="${{ github.event.inputs.label || '' }}"
-          TYPE="${{ steps.type.outputs.snap_type }}"
-          LABEL="${INPUT_LABEL:-$TYPE}"
-          SAFE_LABEL=$(echo "$LABEL" | tr -cd '[:alnum:]_-' | cut -c1-60)
-          echo "safe_label=$SAFE_LABEL" >> $GITHUB_OUTPUT
+          echo "### Snapshot Created: $TAG" >> snapshot-log.md
+          echo "- Timestamp: $(date)" >> snapshot-log.md
+          echo "- Triggered by: $GITHUB_ACTOR" >> snapshot-log.md
+          echo "" >> snapshot-log.md
 
-      - name: Prepare branch & tag names
-        id: names
-        shell: bash
+      - name: Commit and push snapshot log
         run: |
-          TYPE="${{ steps.type.outputs.snap_type }}"
-          LABEL="${{ steps.label.outputs.safe_label }}"
-          TS="${{ steps.ts.outputs.ts }}"
-          BRANCH_NAME="${TYPE}-snapshot-${LABEL}-${TS}"
-          TAG_NAME="${TYPE}-snapshot-${LABEL}-${TS}"
-          # ensure no leading/trailing spaces
-          BRANCH_NAME="$(echo -n "$BRANCH_NAME")"
-          TAG_NAME="$(echo -n "$TAG_NAME")"
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-
-      - name: Create .github/snapshots dir and metadata JSON
-        id: meta
-        shell: bash
-        run: |
-          mkdir -p .github/snapshots
-          TYPE="${{ steps.type.outputs.snap_type }}"
-          TS="${{ steps.ts.outputs.iso_ts }}"
-          TAG="${{ steps.names.outputs.tag_name }}"
-          COMMIT="${{ github.sha }}"
-          REPO="${{ github.repository }}"
-          ACTOR="${{ github.actor }}"
-          URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-          META_PATH=".github/snapshots/repo-meta-${TAG}.json"
-          cat > "$META_PATH" <<EOF
-{
-  "snapshot": "${TAG}",
-  "timestamp_iso": "${TS}",
-  "timestamp": "${{ steps.ts.outputs.ts }}",
-  "type": "${TYPE}",
-  "label": "${{ steps.label.outputs.safe_label }}",
-  "commit": "${COMMIT}",
-  "repository": "${REPO}",
-  "initiator": "${ACTOR}",
-  "commit_url": "${URL}"
-}
-EOF
-          # also write latest canonical file
-          cp "$META_PATH" .github/snapshots/repo-meta.json
-          echo "meta_path=$META_PATH" >> $GITHUB_OUTPUT
-
-      - name: Commit metadata (if allowed)
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/snapshots/repo-meta.json .github/snapshots/repo-meta-*.json || true
-          git commit -m "chore(snapshot): add repo metadata for ${{ steps.names.outputs.tag_name }}" || echo "No metadata changes to commit or push blocked by branch protection"
-          git push origin HEAD || echo "Push skipped (branch protection or no new files)"
-
-      - name: Create snapshot branch (safe)
-        shell: bash
-        run: |
-          BR="${{ steps.names.outputs.branch_name }}"
-          # create branch from current main HEAD (we have full checkout)
-          git checkout -b "$BR" || echo "Branch $BR exists or checkout failed"
-          git push origin "$BR" || echo "Branch push may be blocked or already exists"
-
-      - name: Create snapshot tag (safe)
-        shell: bash
-        run: |
-          TAG="${{ steps.names.outputs.tag_name }}"
-          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; skipping tag creation"
-          else
-            git tag -a "$TAG" -m "Snapshot created by GitHub Action: $TAG"
-            git push origin "refs/tags/$TAG" || echo "Tag push failed (may already exist)"
-          fi
-
-      - name: Append to snapshot-log.md (table)
-        shell: bash
-        run: |
-          LOG="snapshot-log.md"
-          DATE="${{ steps.ts.outputs.iso_ts }}"
-          TYPE="${{ steps.type.outputs.snap_type }}"
-          TAG="${{ steps.names.outputs.tag_name }}"
-          ACTOR="${{ github.actor }}"
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          # ensure header exists
-          if ! grep -q "^| Date | Type | Tag | Triggered By |" "$LOG" 2>/dev/null; then
-            cat > "$LOG" <<'HEADER'
-### Snapshot Log
-
-| Date | Type | Tag | Triggered By |
-|------|------|-----|--------------|
-HEADER
-          fi
-          echo "| $DATE | $TYPE | `$TAG` | [$ACTOR]($RUN_URL) |" >> "$LOG"
-          git add "$LOG"
-          git commit -m "chore(snapshot): log $TAG" || echo "No log changes"
-          git push origin HEAD || echo "Log push skipped (branch protection?)"
-
-      - name: Update SNAPSHOT_STATUS.md (3 latest)
-        shell: bash
-        run: |
-          OUT="SNAPSHOT_STATUS.md"
-          echo "# 🧭 Latest Snapshots Overview" > "$OUT"
-          echo "" >> "$OUT"
-          echo "| Type | File | Created (UTC) |" >> "$OUT"
-          echo "|------|------|---------------|" >> "$OUT"
-          i=0
-          for f in $(ls -1t .github/snapshots/*.json 2>/dev/null | head -n 3); do
-            [ -z "$f" ] && continue
-            base=$(basename "$f")
-            # extract fields safely using jq if available, else fallback
-            if command -v jq >/dev/null 2>&1; then
-              typev=$(jq -r '.type' "$f")
-              ts=$(jq -r '.timestamp_iso' "$f")
-            else
-              typev=$(grep '"type"' "$f" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/')
-              ts=$(grep '"timestamp_iso"' "$f" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/')
-            fi
-            echo "| $typev | \`$base\` | $ts |" >> "$OUT"
-            i=$((i+1))
-          done
-          echo "" >> "$OUT"
-          echo "_Last updated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")_" >> "$OUT"
-          git add "$OUT"
-          git commit -m "chore(snapshot): update status" || echo "No status updates"
-          git push origin HEAD || echo "Status push skipped"
-
-      - name: Cleanup old snapshots (prune tags & branches older than 14 days, keep weekly)
-        shell: bash
-        run: |
-          echo "🔎 Pruning snapshots older than 14 days (with weekly retention)..."
-          # threshold in days
-          THRESHOLD_DAYS=14
-          # today epoch
-          NOW_EPOCH=$(date -u +%s)
-
-          # --- Cleanup tags ---
-          # for tags with pattern *-snapshot-*
-          git for-each-ref --format='%(refname:short) %(creatordate:iso8601)' refs/tags | grep snapshot- | while read -r TAGNAME TAGDATE; do
-            # TAGDATE like: 2025-10-16 23:30:00 +0000
-            TAG_EPOCH=$(date -d "$TAGDATE" +%s 2>/dev/null || echo 0)
-            AGE_DAYS=$(( (NOW_EPOCH - TAG_EPOCH) / 86400 ))
-            if [ "$AGE_DAYS" -gt "$THRESHOLD_DAYS" ]; then
-              # weekly keeper: keep one snapshot per week (by ISO week)
-              WEEK=$(date -d "$TAGDATE" +%G-%V 2>/dev/null || echo "")
-              # check if any other tag in same week is newer; if so, mark for delete
-              # find newest tag for that week
-              NEWEST_FOR_WEEK=$(git for-each-ref --format='%(refname:short) %(creatordate:iso8601)' refs/tags | \
-                grep snapshot- | grep "$WEEK" | head -n 1 | awk '{print $1}')
-              if [ "$NEWEST_FOR_WEEK" != "$TAGNAME" ]; then
-                echo "Deleting old tag $TAGNAME (age ${AGE_DAYS}d)"
-                git push --delete origin "$TAGNAME" || echo "Failed to delete remote tag $TAGNAME"
-                git tag -d "$TAGNAME" || echo "Failed to delete local tag $TAGNAME"
-              else
-                echo "Keeping weekly tag $TAGNAME"
-              fi
-            fi
-          done
-
-          # --- Cleanup remote snapshot branches ---
-          # remote branches matching *-snapshot-*
-          git for-each-ref --format='%(refname:short) %(creatordate:iso8601)' refs/remotes/origin | \
-            grep snapshot- | while read -r RB RDATE; do
-            # RB formatted like origin/auto-snapshot-...
-            BR=$(echo "$RB" | sed 's|origin/||')
-            R_EPOCH=$(date -d "$RDATE" +%s 2>/dev/null || echo 0)
-            AGE_DAYS=$(( (NOW_EPOCH - R_EPOCH) / 86400 ))
-            if [ "$AGE_DAYS" -gt "$THRESHOLD_DAYS" ]; then
-              WEEK=$(date -d "$RDATE" +%G-%V 2>/dev/null || echo "")
-              NEWEST_FOR_WEEK=$(git for-each-ref --format='%(refname:short) %(creatordate:iso8601)' refs/remotes/origin | \
-                grep snapshot- | grep "$WEEK" | head -n 1 | awk '{print $1}' | sed 's|origin/||')
-              if [ "$NEWEST_FOR_WEEK" != "$BR" ]; then
-                echo "Deleting remote snapshot branch origin/$BR (age ${AGE_DAYS}d)"
-                git push origin --delete "$BR" || echo "Failed to delete remote branch $BR"
-              else
-                echo "Keeping weekly branch origin/$BR"
-              fi
-            fi
-          done
-
-      - name: Final summary
-        run: |
-          echo "✅ Snapshot workflow complete. Created tag: ${{ steps.names.outputs.tag_name }}. Metadata: ${{ steps.meta.outputs.meta_path || 'created' }}"
+          git add snapshot-log.md
+          git commit -m "Update snapshot log: $TAG" || echo "No changes to commit"
+          git push origin main
