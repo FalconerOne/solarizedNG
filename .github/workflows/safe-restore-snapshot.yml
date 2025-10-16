@@ -1,0 +1,52 @@
+name: Safe Snapshot Restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot_file:
+        description: "Enter the exact snapshot filename (e.g., snapshot_2025-10-16_12-35-00.zip)"
+        required: true
+        type: string
+
+jobs:
+  restore-snapshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify snapshot exists
+        run: |
+          SNAP_PATH=".github/snapshots/${{ github.event.inputs.snapshot_file }}"
+          if [ ! -f "$SNAP_PATH" ]; then
+            echo "❌ Snapshot file not found: $SNAP_PATH"
+            exit 1
+          fi
+
+      - name: Prepare restore branch
+        run: |
+          RESTORE_BRANCH="restore-${{ github.event.inputs.snapshot_file }}"
+          git checkout -b "$RESTORE_BRANCH"
+
+      - name: Clean workspace before extraction
+        run: |
+          find . -mindepth 1 -not -path "./.git*" -delete
+          echo "Workspace cleaned, extracting snapshot..."
+
+      - name: Extract selected snapshot
+        run: |
+          unzip -o ".github/snapshots/${{ github.event.inputs.snapshot_file }}" -d .
+          echo "✅ Snapshot extracted successfully."
+
+      - name: Commit restored snapshot
+        run: |
+          git config user.name "GitHub Action Restore Bot"
+          git config user.email "restore@github.com"
+          git add .
+          git commit -m "Restored from snapshot ${{ github.event.inputs.snapshot_file }}"
+
+      - name: Push restore branch for review
+        run: |
+          git push origin HEAD
+          echo "✅ Restore branch pushed. You can now review and merge manually."
