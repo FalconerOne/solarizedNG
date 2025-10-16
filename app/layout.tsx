@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import "@/styles/globals.css";
 import NotificationListener from "@/components/notifications/NotificationListener";
 import { ToastWrapper } from "@/components/ui/use-toast";
-import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener";
+import ProgressBarProvider from "@/components/ui/ProgressBarProvider";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,18 +15,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
-    // ✅ Detect PWA install availability
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallPrompt(true);
     };
-
     window.addEventListener("beforeinstallprompt", handler);
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
-    };
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   const handleInstall = async () => {
@@ -62,23 +57,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
-        <ToastWrapper>
-          {/* 🎉 Global Celebration Listener - Confetti + Masked winner alert */}
-          <GlobalCelebrationListener />
+        <ProgressBarProvider>
+          <ToastWrapper>
+            <NotificationListener />
+            <main>{children}</main>
+          </ToastWrapper>
+        </ProgressBarProvider>
 
-          {/* 🔔 Notifications + Main App Content */}
-          <NotificationListener />
-          <main>{children}</main>
-        </ToastWrapper>
-
-        {/* 📲 Install Prompt (appears at bottom-center) */}
         <AnimatePresence>
           {showInstallPrompt && (
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
-              className="fixed bottom-5 inset-x-0 flex justify-center"
+              className="fixed bottom-5 inset-x-0 flex justify-center z-50"
             >
               <div className="bg-white shadow-lg rounded-2xl p-3 flex items-center gap-3 border border-gray-200 max-w-sm w-full mx-3">
                 <div className="flex-1">
