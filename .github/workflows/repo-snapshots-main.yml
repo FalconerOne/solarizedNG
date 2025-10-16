@@ -1,0 +1,58 @@
+name: Repo Snapshots (Auto + Manual + Nightly + Logs + Safety)
+
+on:
+  push:
+    branches:
+      - main
+      - production
+
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Optional label or reason for manual snapshot (e.g. before update)"
+        required: false
+        default: "manual"
+
+  schedule:
+    # Runs every night at 23:30 UTC
+    - cron: "30 23 * * *"
+
+concurrency:
+  group: repo-snapshot-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    name: Create Snapshot (Auto/Manual/Nightly + Logs)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate timestamp
+        id: time
+        run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Determine snapshot type
+        id: type
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "type=nightly" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "type=manual" >> $GITHUB_OUTPUT
+          else
+            echo "type=auto" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Compute label
+        id: label
+        run: |
+          INPUT_LABEL="${{ github.event.inputs.label }}"
+          if [[ -z "$INPUT_LABE_]()]()
