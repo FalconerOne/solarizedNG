@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import "@/styles/globals.css";
+import NotificationListener from "@/components/notifications/NotificationListener";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -23,6 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
+      <ToastWrapper>
+  <NotificationListener />
+  {children}
+</ToastWrapper>
     };
   }, []);
 
