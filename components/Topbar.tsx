@@ -4,16 +4,18 @@ import React, { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useUser } from "@supabase/auth-helpers-react";
+import { useToast } from "@/components/ui/use-toast"; // ✅ Added
 
 const Topbar: React.FC = () => {
   const supabase = createClientComponentClient();
   const user = useUser();
+  const { toast } = useToast(); // ✅ Added
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Fetch notifications for this user
+  // ✅ Fetch notifications and subscribe to real-time updates
   useEffect(() => {
     if (!user) return;
     fetchNotifications();
@@ -26,6 +28,13 @@ const Topbar: React.FC = () => {
         (payload) => {
           if (payload.new.user_id === user.id) {
             setNotifications((prev) => [payload.new, ...prev]);
+
+            // ✅ Show toast popup instantly for new notification
+            toast({
+              title: "🔔 New Notification",
+              description: payload.new.message,
+              duration: 4000,
+            });
           }
         }
       )
@@ -119,11 +128,3 @@ const Topbar: React.FC = () => {
                 ))
               )}
             </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default Topbar;
