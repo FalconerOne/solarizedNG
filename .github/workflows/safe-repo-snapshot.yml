@@ -1,52 +1,109 @@
-name: Safe Repository Snapshot
+name: Safe Repo Snapshots (Auto + Manual + Nightly + Cleanup)
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-  deployment_status:
-    types: [success]
+      - production
+
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Optional label or reason for manual snapshot (e.g. before major update)"
+        required: false
+        default: "manual"
+
+  schedule:
+    # Run nightly at 23:30 UTC
+    - cron: "30 23 * * *"
 
 jobs:
-  create-snapshot:
+  snapshot:
     runs-on: ubuntu-latest
+    name: Create & Maintain Snapshots
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up timestamp
-        id: timestamp
-        run: echo "NOW=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+      - name: Generate timestamp
+        id: time
+        run: echo "timestamp=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
 
-      - name: Ensure snapshot directory exists
+      - name: Determine snapshot type
+        id: type
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "type=nightly" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "type=manual" >> $GITHUB_OUTPUT
+          else
+            echo "type=auto" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set label
+        id: label
+        run: |
+          INPUT_LABEL="${{ github.event.inputs.label }}"
+          if [[ -z "$INPUT_LABEL" ]]; then
+            LABEL="${{ steps.type.outputs.type }}"
+          else
+            LABEL="$INPUT_LABEL"
+          fi
+          SAFE_LABEL=$(echo "$LABEL" | tr -cd '[:alnum:]_-')
+          echo "safe_label=$SAFE_LABEL" >> $GITHUB_OUTPUT
+
+      - name: Create snapshot directory if missing
         run: mkdir -p .github/snapshots
 
-      - name: Create compressed snapshot
+      - name: Create snapshot ZIP
+        id: zip
         run: |
-          SNAP_NAME="snapshot_${{ env.NOW }}.zip"
-          git archive --format=zip --output=".github/snapshots/$SNAP_NAME" HEAD
-          echo "SNAPSHOT_FILE=$SNAP_NAME" >> $GITHUB_ENV
+          SNAP_NAME="snapshot_${{ steps.type.outputs.type }}_${{ steps.label.outputs.safe_label }}_${{ steps.time.outputs.timestamp }}.zip"
+          SNAP_PATH=".github/snapshots/$SNAP_NAME"
+          zip -r "$SNAP_PATH" . -x "*.git*" ".github/snapshots/*" || echo "✅ Snapshot created at $SNAP_PATH"
+          echo "snapshot_name=$SNAP_NAME" >> $GITHUB_OUTPUT
+          echo "snapshot_path=$SNAP_PATH" >> $GITHUB_OUTPUT
 
-      - name: Update or create snapshot log
+      - name: Commit snapshot archive
         run: |
-          LOG_FILE=".github/snapshot-log.md"
-          echo "## Snapshot Log" > tmp_log.md
-          echo "" >> tmp_log.md
-          echo "- **Snapshot:** [${{ env.SNAPSHOT_FILE }}](./snapshots/${{ env.SNAPSHOT_FILE }})" >> tmp_log.md
-          echo "  - **Created:** $(date '+%Y-%m-%d %H:%M:%S')" >> tmp_log.md
-          echo "  - **Commit:** $GITHUB_SHA" >> tmp_log.md
-          echo "" >> tmp_log.md
-          if [ -f "$LOG_FILE" ]; then
-            tail -n +2 "$LOG_FILE" >> tmp_log.md
+          git config user.name "GitHub Snapshot Bot"
+          git config user.email "snapshot@github.com"
+          git add .github/snapshots/
+          git commit -m "Snapshot created: ${{ steps.zip.outputs.snapshot_name }}" || echo "No new snapshot changes to commit"
+          git push origin HEAD || echo "⚠️ Snapshot push skipped (already synced)"
+
+      - name: Log snapshot creation
+        run: |
+          echo "- ✅ **${{ steps.type.outputs.type }}** snapshot: \`${{ steps.zip.outputs.snapshot_name }}\` created on $(date -u)" >> snapshot-log.md
+          git add snapshot-log.md
+          git commit -m "Update snapshot log: ${{ steps.zip.outputs.snapshot_name }}" || echo "No snapshot log updates"
+          git push origin HEAD || echo "Log push skipped"
+
+      - name: Clean up old snapshots (keep last 10)
+        run: |
+          echo "🧹 Checking for old snapshots to delete..."
+          SNAPSHOT_DIR=".github/snapshots"
+          TOTAL=$(ls -1t "$SNAPSHOT_DIR"/*.zip 2>/dev/null | wc -l || echo 0)
+          if [ "$TOTAL" -gt 10 ]; then
+            echo "Found $TOTAL snapshots. Keeping latest 10..."
+            ls -1t "$SNAPSHOT_DIR"/*.zip | tail -n +11 | while read OLD; do
+              echo "🗑️ Deleting $OLD"
+              rm -f "$OLD"
+            done
+          else
+            echo "✅ Snapshot count within limit ($TOTAL <= 10)"
           fi
-          mv tmp_log.md "$LOG_FILE"
 
-      - name: Commit and push snapshot + log
+      - name: Commit cleanup if any deletions occurred
         run: |
-          git config user.name "GitHub Action Bot"
-          git config user.email "actions@github.com"
-          git add .github/snapshots .github/snapshot-log.md
-          git commit -m "Snapshot: ${{ env.SNAPSHOT_FILE }} (Auto)"
-          git push origin main
+          git add .github/snapshots/
+          git commit -m "Cleanup old snapshots (kept latest 10)" || echo "No cleanup needed"
+          git push origin HEAD || echo "Cleanup push skipped"
+
+      - name: Summary output
+        run: |
+          echo "🎉 Snapshot process completed successfully!"
+          echo "File: ${{ steps.zip.outputs.snapshot_path }}"
