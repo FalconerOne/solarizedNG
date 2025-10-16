@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import "@/styles/globals.css";
 import NotificationListener from "@/components/notifications/NotificationListener";
 import { ToastWrapper } from "@/components/ui/use-toast";
+import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
-    // Detect PWA install availability
+    // ✅ Detect PWA install availability
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -62,11 +63,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
         <ToastWrapper>
+          {/* 🎉 Global Celebration Listener - Confetti + Masked winner alert */}
+          <GlobalCelebrationListener />
+
+          {/* 🔔 Notifications + Main App Content */}
           <NotificationListener />
           <main>{children}</main>
         </ToastWrapper>
 
-        {/* Install Prompt (appears subtly at bottom-center) */}
+        {/* 📲 Install Prompt (appears at bottom-center) */}
         <AnimatePresence>
           {showInstallPrompt && (
             <motion.div
