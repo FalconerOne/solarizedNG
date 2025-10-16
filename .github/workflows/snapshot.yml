@@ -16,22 +16,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Generate timestamp
         id: time
         run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Create snapshot branch
+      - name: Generate snapshot names
+        id: names
         run: |
           LABEL=${{ github.event.inputs.label }}
-          BRANCH_NAME="manual-snapshot-${LABEL}-${{ steps.time.outputs.timestamp }}"
-          git checkout -b "$BRANCH_NAME"
-          git push origin "$BRANCH_NAME"
-          echo "✅ Created branch: $BRANCH_NAME"
+          SAFE_LABEL=$(echo "$LABEL" | tr -cd '[:alnum:]_-')
+          BRANCH_NAME="manual-snapshot-${SAFE_LABEL}-${{ steps.time.outputs.timestamp }}"
+          TAG_NAME="snapshot-${SAFE_LABEL}-${{ steps.time.outputs.timestamp }}"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create snapshot branch
+        run: |
+          git checkout -b "${{ steps.names.outputs.branch_name }}"
+          git push origin "${{ steps.names.outputs.branch_name }}" || echo "⚠️ Branch push skipped (already exists)"
 
       - name: Create snapshot tag
         run: |
-          TAG_NAME="snapshot-${{ github.event.inputs.label }}-${{ steps.time.outputs.timestamp }}"
-          git tag -a "$TAG_NAME" -m "Manual snapshot: $TAG_NAME"
-          git push origin "$TAG_NAME"
-          ec
+          git tag -a "${{ steps.names.outputs.tag_name }}" -m "Manual snapshot: ${ { steps.names.outputs.tag_name } }"
+          git push origin "${{ steps.names.outputs.tag_name }}" || echo "⚠️ Tag push skipped (already exists)"
+
+      - name: Confirm completion
+        run: echo "🎉 Manual snapshot + tag completed successfully"
