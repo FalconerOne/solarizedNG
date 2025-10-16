@@ -1,54 +1,46 @@
 /**
- * Rename Branding Script
- * -----------------------------------------------------------
- * Safely updates all user-facing references from old brand name
- * (e.g. "SolarizedNG") to new name (e.g. "MyGiveAway")
- * without touching internal envs or backend identifiers.
- *
- * Usage:
- *   node scripts/rename-branding.js "MyGiveAway"
+ * Safe Project Renamer: SolarizedNG → MyGiveAway
+ * ------------------------------------------------
+ * Updates common project files (package.json, next.config.js, manifest, env, etc.)
+ * with the new brand name and tagline, without touching code logic.
  */
 
 import fs from "fs";
 import path from "path";
 
-const root = process.cwd();
-const newName = process.argv[2];
+const oldName = /SolarizedNG/g;
+const newName = "MyGiveAway";
+const tagline =
+  "Join, Win, and track GiveAways that Delight You & Support Charity.";
 
-if (!newName) {
-  console.error("❌ Please provide a new brand name, e.g. `node scripts/rename-branding.js MyGiveAway`");
-  process.exit(1);
-}
-
-const OLD_NAME = "SolarizedNG";
-const TARGET_FILES = [
+const files = [
   "package.json",
-  "public/manifest.json",
   "next.config.js",
+  "vercel.json",
+  "public/manifest.json",
+  "README.md",
   "app/layout.tsx",
   "app/head.tsx",
-  "app/page.tsx",
+  ".env",
+  ".env.example",
 ];
 
-function replaceInFile(filePath) {
-  try {
-    const absPath = path.join(root, filePath);
-    if (!fs.existsSync(absPath)) return;
-
-    const content = fs.readFileSync(absPath, "utf8");
-    if (!content.includes(OLD_NAME)) return;
-
-    const updated = content.replace(new RegExp(OLD_NAME, "g"), newName);
-    fs.writeFileSync(absPath, updated, "utf8");
-    console.log(`✅ Updated: ${filePath}`);
-  } catch (err) {
-    console.error(`⚠️ Error updating ${filePath}:`, err.message);
+for (const file of files) {
+  const filePath = path.join(process.cwd(), file);
+  if (fs.existsSync(filePath)) {
+    let content = fs.readFileSync(filePath, "utf8");
+    let updated = content
+      .replace(oldName, newName)
+      .replace(
+        /Join, Win, and track GiveAways that Delight'?s You & Support'?s Charity\.?/gi,
+        tagline
+      );
+    fs.writeFileSync(filePath, updated, "utf8");
+    console.log(`✅ Updated ${file}`);
+  } else {
+    console.log(`⚠️  Skipped missing file: ${file}`);
   }
 }
 
-console.log(`\n🔄 Starting brand rename: ${OLD_NAME} → ${newName}\n`);
-
-TARGET_FILES.forEach(replaceInFile);
-
-console.log("\n✨ Branding update complete!");
-console.log("👉 Review changes and commit them to GitHub.\n");
+console.log("\n🎉 Branding rename complete! Run a quick commit next:");
+console.log("git add . && git commit -m 'Brand rename: SolarizedNG → MyGiveAway'");
