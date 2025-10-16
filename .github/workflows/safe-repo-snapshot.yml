@@ -1,4 +1,4 @@
-name: Safe Repo Snapshots (Auto + Manual + Nightly + Cleanup)
+name: Safe Repo Snapshot + Restore
 
 on:
   push:
@@ -8,42 +8,49 @@ on:
 
   workflow_dispatch:
     inputs:
+      action:
+        description: "Choose: 'snapshot' to create backup or 'restore' to roll back"
+        required: true
+        default: "snapshot"
       label:
-        description: "Optional label or reason for manual snapshot (e.g. before major update)"
+        description: "Optional label or note (e.g., before major update)"
         required: false
         default: "manual"
+      restore_tag:
+        description: "Tag name to restore from (only needed for restore)"
+        required: false
 
   schedule:
-    # Run nightly at 23:30 UTC
-    - cron: "30 23 * * *"
+    - cron: "30 23 * * *" # Nightly 23:30 UTC
 
 jobs:
-  snapshot:
+  main:
     runs-on: ubuntu-latest
-    name: Create & Maintain Snapshots
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate timestamp
+      - name: Generate Timestamp
         id: time
-        run: echo "timestamp=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
+        run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Determine snapshot type
+      - name: Determine Type
         id: type
         run: |
           if [[ "${{ github.event_name }}" == "schedule" ]]; then
             echo "type=nightly" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.action }}" == "restore" ]]; then
+            echo "type=restore" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "type=manual" >> $GITHUB_OUTPUT
           else
             echo "type=auto" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set label
+      - name: Compute Labels
         id: label
         run: |
           INPUT_LABEL="${{ github.event.inputs.label }}"
@@ -55,55 +62,77 @@ jobs:
           SAFE_LABEL=$(echo "$LABEL" | tr -cd '[:alnum:]_-')
           echo "safe_label=$SAFE_LABEL" >> $GITHUB_OUTPUT
 
-      - name: Create snapshot directory if missing
-        run: mkdir -p .github/snapshots
-
-      - name: Create snapshot ZIP
-        id: zip
+      # --- SNAPSHOT SECTION ---
+      - name: Create Snapshot
+        if: ${{ steps.type.outputs.type != 'restore' }}
         run: |
-          SNAP_NAME="snapshot_${{ steps.type.outputs.type }}_${{ steps.label.outputs.safe_label }}_${{ steps.time.outputs.timestamp }}.zip"
-          SNAP_PATH=".github/snapshots/$SNAP_NAME"
-          zip -r "$SNAP_PATH" . -x "*.git*" ".github/snapshots/*" || echo "✅ Snapshot created at $SNAP_PATH"
-          echo "snapshot_name=$SNAP_NAME" >> $GITHUB_OUTPUT
-          echo "snapshot_path=$SNAP_PATH" >> $GITHUB_OUTPUT
+          SNAP_TYPE="${{ steps.type.outputs.type }}"
+          LABEL="${{ steps.label.outputs.safe_label }}"
+          TS="${{ steps.time.outputs.timestamp }}"
+          BRANCH_NAME="${SNAP_TYPE}-snapshot-${LABEL}-${TS}"
+          TAG_NAME="${SNAP_TYPE}-snapshot-${LABEL}-${TS}"
 
-      - name: Commit snapshot archive
-        run: |
-          git config user.name "GitHub Snapshot Bot"
-          git config user.email "snapshot@github.com"
-          git add .github/snapshots/
-          git commit -m "Snapshot created: ${{ steps.zip.outputs.snapshot_name }}" || echo "No new snapshot changes to commit"
-          git push origin HEAD || echo "⚠️ Snapshot push skipped (already synced)"
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME" || echo "⚠️ Branch push skipped (already exists)"
 
-      - name: Log snapshot creation
-        run: |
-          echo "- ✅ **${{ steps.type.outputs.type }}** snapshot: \`${{ steps.zip.outputs.snapshot_name }}\` created on $(date -u)" >> snapshot-log.md
-          git add snapshot-log.md
-          git commit -m "Update snapshot log: ${{ steps.zip.outputs.snapshot_name }}" || echo "No snapshot log updates"
-          git push origin HEAD || echo "Log push skipped"
+          git tag -a "$TAG_NAME" -m "Snapshot created: $TAG_NAME"
+          git push origin "$TAG_NAME" || echo "⚠️ Tag push skipped (already exists)"
 
-      - name: Clean up old snapshots (keep last 10)
+          echo "🎉 Snapshot ($SNAP_TYPE) created successfully at $TAG_NAME"
+
+      - name: Cleanup Old Snapshots (Nightly)
+        if: ${{ steps.type.outputs.type == 'nightly' }}
         run: |
-          echo "🧹 Checking for old snapshots to delete..."
-          SNAPSHOT_DIR=".github/snapshots"
-          TOTAL=$(ls -1t "$SNAPSHOT_DIR"/*.zip 2>/dev/null | wc -l || echo 0)
-          if [ "$TOTAL" -gt 10 ]; then
-            echo "Found $TOTAL snapshots. Keeping latest 10..."
-            ls -1t "$SNAPSHOT_DIR"/*.zip | tail -n +11 | while read OLD; do
-              echo "🗑️ Deleting $OLD"
-              rm -f "$OLD"
-            done
-          else
-            echo "✅ Snapshot count within limit ($TOTAL <= 10)"
+          echo "🧹 Cleaning old nightly snapshots..."
+          git fetch --tags
+          TAGS=$(git tag -l "nightly-snapshot-*" | sort -r | tail -n +21)
+          for TAG in $TAGS; do
+            echo "Deleting old tag: $TAG"
+            git push origin :refs/tags/$TAG || true
+          done
+
+      # --- RESTORE SECTION ---
+      - name: Validate Restore Input
+        if: ${{ steps.type.outputs.type == 'restore' }}
+        run: |
+          if [[ -z "${{ github.event.inputs.restore_tag }}" ]]; then
+            echo "❌ ERROR: You must provide a valid tag in 'restore_tag' to restore from."
+            exit 1
           fi
 
-      - name: Commit cleanup if any deletions occurred
+      - name: Restore From Snapshot
+        if: ${{ steps.type.outputs.type == 'restore' }}
         run: |
-          git add .github/snapshots/
-          git commit -m "Cleanup old snapshots (kept latest 10)" || echo "No cleanup needed"
-          git push origin HEAD || echo "Cleanup push skipped"
+          TAG="${{ github.event.inputs.restore_tag }}"
+          echo "🔁 Restoring repository from snapshot: $TAG"
 
-      - name: Summary output
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG" || {
+            echo "❌ ERROR: Snapshot tag '$TAG' not found."; exit 1;
+          }
+
+          echo "✅ Found tag $TAG, proceeding with restore..."
+          git checkout "$TAG"
+
+          RESTORE_BRANCH="restore-${TAG}-$(date +'%Y%m%d-%H%M%S')"
+          git checkout -b "$RESTORE_BRANCH"
+          git push origin "$RESTORE_BRANCH"
+
+          echo "🎯 Restore completed. Branch created: $RESTORE_BRANCH"
+          echo "You can now review and merge manually if safe."
+
+      # --- LOGGING ---
+      - name: Log to snapshot-log.md
         run: |
-          echo "🎉 Snapshot process completed successfully!"
-          echo "File: ${{ steps.zip.outputs.snapshot_path }}"
+          echo "### Snapshot/Restore Log" >> snapshot-log.md
+          echo "- **Event:** ${{ steps.type.outputs.type }}" >> snapshot-log.md
+          echo "- **Time:** $(date -u)" >> snapshot-log.md
+          echo "- **Tag:** ${{ github.event.inputs.restore_tag || 'N/A' }}" >> snapshot-log.md
+          echo "- **Actor:** ${{ github.actor }}" >> snapshot-log.md
+          echo "" >> snapshot-log.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add snapshot-log.md
+          git commit -m "Update snapshot log: ${{ steps.type.outputs.type }}" || echo "ℹ️ No changes to commit"
+          git push || echo "⚠️ Log push skipped"
+
