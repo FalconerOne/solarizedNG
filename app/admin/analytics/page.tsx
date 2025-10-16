@@ -1,152 +1,111 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-export default function GiveawayAnalyticsPage() {
-  const [analytics, setAnalytics] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function AdminAnalyticsPage() {
+  const supabase = createClientComponentClient();
+  const [data, setData] = useState<any[]>([]);
+  const [giveaways, setGiveaways] = useState<any[]>([]);
+  const [selectedGiveaway, setSelectedGiveaway] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
-    async function fetchAnalytics() {
-      setLoading(true);
-
-      const { data: giveaways, error } = await supabase
-        .from("giveaways")
-        .select("id, title, start_date, end_date");
-
-      if (error || !giveaways) {
-        console.error(error);
-        setLoading(false);
-        return;
-      }
-
-      // Combine analytics data
-      const analyticsData = await Promise.all(
-        giveaways.map(async (g) => {
-          const [
-            { count: participantCount },
-            { count: likeCount },
-            { count: referralCount },
-            { data: genderData },
-          ] = await Promise.all([
-            supabase
-              .from("giveaway_participants")
-              .select("*", { count: "exact", head: true })
-              .eq("giveaway_id", g.id),
-
-            supabase
-              .from("giveaway_likes")
-              .select("*", { count: "exact", head: true })
-              .eq("giveaway_id", g.id),
-
-            supabase
-              .from("referrals")
-              .select("*", { count: "exact", head: true })
-              .eq("giveaway_id", g.id),
-
-            supabase
-              .from("user_profiles")
-              .select("gender")
-              .in(
-                "id",
-                (
-                  await supabase
-                    .from("giveaway_participants")
-                    .select("user_id")
-                    .eq("giveaway_id", g.id)
-                ).data?.map((u) => u.user_id) || []
-              ),
-          ]);
-
-          const genderCounts = { male: 0, female: 0, other: 0 };
-          genderData?.forEach((g) => {
-            const gender = g.gender?.toLowerCase();
-            if (genderCounts[gender]) genderCounts[gender]++;
-            else genderCounts.other++;
-          });
-
-          const now = new Date();
-          const ended = new Date(g.end_date) < now;
-
-          return {
-            title: g.title,
-            participants: participantCount || 0,
-            likes: likeCount || 0,
-            referrals: referralCount || 0,
-            gender_male: genderCounts.male,
-            gender_female: genderCounts.female,
-            gender_other: genderCounts.other,
-            status: ended ? "Ended" : "Active",
-            start_date: g.start_date,
-            end_date: g.end_date,
-          };
-        })
-      );
-
-      setAnalytics(analyticsData);
-      setLoading(false);
-    }
-
+    fetchGiveaways();
     fetchAnalytics();
-  }, []);
+    const interval = setInterval(() => fetchAnalytics(), 300000); // Auto-refresh every 5 minutes
+    return () => clearInterval(interval);
+  }, [selectedGiveaway, startDate, endDate]);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="animate-spin w-8 h-8 text-indigo-500" />
-      </div>
-    );
-  }
+  const fetchGiveaways = async () => {
+    const { data: gData } = await supabase
+      .from("giveaways")
+      .select("id, title")
+      .order("created_at", { ascending: false });
+    if (gData) setGiveaways(gData);
+  };
+
+  const fetchAnalytics = async () => {
+    let query = supabase
+      .from("giveaway_daily_stats")
+      .select("*")
+      .order("date", { ascending: true });
+
+    if (selectedGiveaway !== "all") query = query.eq("giveaway_id", selectedGiveaway);
+    if (startDate) query = query.gte("date", startDate);
+    if (endDate) query = query.lte("date", endDate);
+
+    const { data: aData } = await query;
+    if (aData) {
+      setData(aData);
+      setLastUpdated(new Date());
+    }
+  };
 
   return (
-    <div className="p-6 space-y-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-4">
-        📊 Giveaway Analytics & Engagement Overview
-      </h1>
+    <div className="p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>📊 Giveaway Analytics Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4 items-center mb-6">
+            {/* Giveaway Filter */}
+            <select
+              value={selectedGiveaway}
+              onChange={(e) => setSelectedGiveaway(e.target.value)}
+              className="border p-2 rounded"
+            >
+              <option value="all">All Giveaways</option>
+              {giveaways.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title}
+                </option>
+              ))}
+            </select>
 
-      {analytics.length === 0 && (
-        <p className="text-gray-500">No giveaways or analytics data found.</p>
-      )}
+            {/* Date Range Filters */}
+            <div className="flex gap-2">
+              <label className="text-sm text-gray-500">From:</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border rounded p-2"
+              />
+              <label className="text-sm text-gray-500">To:</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border rounded p-2"
+              />
+            </div>
 
-      {analytics.map((a) => (
-        <Card key={a.title} className="p-4 bg-white shadow-md">
-          <CardContent>
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-xl font-semibold">{a.title}</h2>
-              <span
-                className={`text-sm font-medium px-2 py-1 rounded-full ${
-                  a.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                }`}
-              >
-                {a.status}
+            {/* Refresh Indicator */}
+            {lastUpdated && (
+              <span className="text-xs text-gray-400 ml-auto">
+                Last updated: {lastUpdated.toLocaleTimeString()}
               </span>
-            </div>
+            )}
+          </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-700 mb-4">
-              <div><strong>Participants:</strong> {a.participants}</div>
-              <div><strong>Likes:</strong> {a.likes}</div>
-              <div><strong>Referrals:</strong> {a.referrals}</div>
-              <div><strong>Duration:</strong> {a.start_date} → {a.end_date}</div>
-            </div>
-
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={[a]}>
-                <XAxis dataKey="title" hide />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="gender_male" fill="#4f46e5" name="Male" />
-                <Bar dataKey="gender_female" fill="#ec4899" name="Female" />
-                <Bar dataKey="gender_other" fill="#a1a1aa" name="Other" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      ))}
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="participants" stroke="#3b82f6" name="Participants" />
+              <Line type="monotone" dataKey="entries" stroke="#10b981" name="Entries" />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }
