@@ -8,14 +8,43 @@ import "@/styles/globals.css";
 import NotificationListener from "@/components/notifications/NotificationListener";
 import { ToastWrapper } from "@/components/ui/use-toast";
 import ProgressBarProvider from "@/components/ui/ProgressBarProvider";
-import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener"; // ✅ Global winner confetti listener
+import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener";
+import { createClient } from "@/config/supabase"; // ✅ Supabase client
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [userRole, setUserRole] = useState("guest");
 
-  // ✅ Handle PWA install prompt availability
+  // ✅ Detect logged-in user and fetch role
+  useEffect(() => {
+    const supabase = createClient();
+
+    async function fetchUserRole() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUserRole("guest");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+
+      if (error || !data) {
+        setUserRole("guest");
+      } else {
+        setUserRole(data.role || "user");
+      }
+    }
+
+    fetchUserRole();
+  }, []);
+
+  // ✅ Handle PWA install prompt
   useEffect(() => {
     const handler = (e: any) => {
       e.preventDefault();
@@ -26,7 +55,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  // ✅ Trigger install prompt
   const handleInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -62,16 +90,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
         <ProgressBarProvider>
           <ToastWrapper>
-            {/* 🔔 Notifications and Global Celebration */}
+            {/* Notifications & realtime global celebration */}
             <NotificationListener />
-            <GlobalCelebrationListener /> {/* ✅ Winner confetti listener */}
+            <GlobalCelebrationListener userRole={userRole} /> {/* ✅ Dynamic role */}
 
-            {/* 🌐 Page Content */}
+            {/* Page Content */}
             <main>{children}</main>
           </ToastWrapper>
         </ProgressBarProvider>
 
-        {/* 📲 Subtle PWA Install Prompt */}
+        {/* Subtle install prompt */}
         <AnimatePresence>
           {showInstallPrompt && (
             <motion.div
