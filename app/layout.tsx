@@ -8,13 +8,14 @@ import "@/styles/globals.css";
 import NotificationListener from "@/components/notifications/NotificationListener";
 import { ToastWrapper } from "@/components/ui/use-toast";
 import ProgressBarProvider from "@/components/ui/ProgressBarProvider";
-import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener"; // ✅ NEW
+import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener"; // ✅ Global winner confetti listener
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
+  // ✅ Handle PWA install prompt availability
   useEffect(() => {
     const handler = (e: any) => {
       e.preventDefault();
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+  // ✅ Trigger install prompt
   const handleInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -60,16 +62,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
         <ProgressBarProvider>
           <ToastWrapper>
-            {/* Notifications & realtime global celebration */}
+            {/* 🔔 Notifications and Global Celebration */}
             <NotificationListener />
-            <GlobalCelebrationListener userRole="guest" /> {/* ✅ Added here */}
+            <GlobalCelebrationListener /> {/* ✅ Winner confetti listener */}
 
-            {/* Page Content */}
+            {/* 🌐 Page Content */}
             <main>{children}</main>
           </ToastWrapper>
         </ProgressBarProvider>
 
-        {/* Subtle install prompt */}
+        {/* 📲 Subtle PWA Install Prompt */}
         <AnimatePresence>
           {showInstallPrompt && (
             <motion.div
