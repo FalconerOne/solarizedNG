@@ -1,48 +1,31 @@
+// app/api/admin/winner-event/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false },
-});
+/**
+ * Fetch winner events, optionally filtered by date or giveaway.
+ * Query params accepted: ?limit=20&giveaway_id=...
+ */
 
-export async function POST(req: Request) {
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
+export async function GET(req: Request) {
   try {
-    const { giveaway_id, winner_id, prize_name, image_url, message, visible_to } =
-      await req.json();
+    const url = new URL(req.url);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const giveaway_id = url.searchParams.get("giveaway_id");
 
-    if (!giveaway_id || !winner_id || !prize_name) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+    let q = admin.from("winner_events").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (giveaway_id) q = q.eq("giveaway_id", giveaway_id);
 
-    const { error } = await supabase.from("winner_events").insert([
-      {
-        giveaway_id,
-        winner_id,
-        prize_name,
-        image_url: image_url || null,
-        message:
-          message ||
-          "🎉 A new giveaway winner has emerged! Check the leaderboard to see the details!",
-        visible_to: visible_to || "all",
-      },
-    ]);
-
+    const { data, error } = await q;
     if (error) throw error;
 
-    return NextResponse.json(
-      { success: true, message: "Winner event broadcasted successfully 🎊" },
-      { status: 200 }
-    );
+    return NextResponse.json({ success: true, events: data ?? [] });
   } catch (err: any) {
-    console.error("Error broadcasting winner event:", err);
-    return NextResponse.json(
-      { error: "Failed to broadcast winner event", details: err.message },
-      { status: 500 }
-    );
+    console.error("winner-event GET error", err);
+    return NextResponse.json({ success: false, error: err?.message ?? "Server error" }, { status: 500 });
   }
 }
