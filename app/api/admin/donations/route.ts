@@ -1,64 +1,53 @@
+// app/api/admin/donations/route.ts
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 
-export async function GET() {
-  const supabase = createRouteHandlerClient({ cookies });
+/**
+ * Donations endpoint:
+ * - GET: return latest donations (admin)
+ * - POST: record a donation (server-side)
+ */
 
-  // Fetch all donation records (admin view)
-  const { data, error } = await supabase
-    .from("charity_donations")
-    .select("*")
-    .order("created_at", { ascending: false });
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json(data);
+export async function GET(req: Request) {
+  try {
+    const { data, error } = await admin.from("charity_donations").select("*").order("created_at", { ascending: false }).limit(50);
+    if (error) throw error;
+    return NextResponse.json({ success: true, donations: data ?? [] });
+  } catch (err: any) {
+    console.error("donations GET error", err);
+    return NextResponse.json({ success: false, error: err?.message ?? "Server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  const body = await req.json();
+  try {
+    const body = await req.json();
+    const { donor_name, amount, currency = "USD", note, giveaway_id = null } = body;
+    if (!donor_name || !amount) {
+      return NextResponse.json({ success: false, error: "donor_name and amount are required" }, { status: 400 });
+    }
 
-  const { amount, organization, description } = body;
-  if (!amount || !organization)
-    return NextResponse.json(
-      { error: "Missing required fields: amount or organization" },
-      { status: 400 }
-    );
+    const { data: inserted, error } = await admin.from("charity_donations").insert([{
+      donor_name,
+      amount,
+      currency,
+      note,
+      giveaway_id,
+      created_at: new Date().toISOString()
+    }]).select().single();
 
-  // Get current user (must be admin)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error) throw error;
 
-  // Check admin role
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+    // log and broadcast donation notification (optional)
+    await admin.from("admin_activity_log").insert([{ action: "donation_recorded", details: JSON.stringify(inserted), created_at: new Date().toISOString() }]);
 
-  if (profile?.role !== "admin")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  // Insert donation entry
-  const { data, error } = await supabase
-    .from("charity_donations")
-    .insert([
-      {
-        amount,
-        organization,
-        description: description || "",
-        created_by: user.id,
-      },
-    ])
-    .select()
-    .single();
-
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 400 });
-
-  return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, donation: inserted });
+  } catch (err: any) {
+    console.error("donations POST error", err);
+    return NextResponse.json({ success: false, error: err?.message ?? "Server error" }, { status: 500 });
+  }
 }
