@@ -1,51 +1,42 @@
+// app/api/admin/analytics/refresh/route.ts
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+
+/**
+ * Recompute and refresh admin analytics snapshot.
+ * This endpoint aggregates key events and writes to admin_analytics table.
+ * (Run on-demand from admin dashboard.)
+ */
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 export async function POST() {
-  const supabase = createRouteHandlerClient({ cookies });
-
   try {
-    // 🧠 1️⃣ Verify Admin Access
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    // Example aggregates: total signups, total entries, total donations
+    const [{ count: totalSignups }, { count: totalEntries }, { data: donations }] = await Promise.all([
+      admin.from("auth.users").select("id", { count: "exact", head: true }),
+      admin.from("entries").select("id", { count: "exact", head: true }),
+      admin.from("charity_donations").select("amount"),
+    ]);
 
-    const userEmail = session?.user?.email || "";
+    const totalDonations = (donations || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
 
-    const isAdmin =
-      userEmail.endsWith("@solarizesolutions.com.ng") ||
-      userEmail.endsWith("@falconerone.com");
+    const row = {
+      metric_date: new Date().toISOString(),
+      total_signups: totalSignups ?? 0,
+      total_entries: totalEntries ?? 0,
+      total_donations: totalDonations,
+      created_at: new Date().toISOString(),
+    };
 
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: "Unauthorized — Admin access required." },
-        { status: 403 }
-      );
-    }
+    const { data, error } = await admin.from("admin_analytics").insert([row]).select().single();
+    if (error) throw error;
 
-    // 🧩 2️⃣ Run Aggregation SQL Function
-    const { error } = await supabase.rpc("update_giveaway_daily_stats");
-
-    if (error) {
-      console.error("Aggregation Error:", error);
-      return NextResponse.json(
-        { success: false, message: "Failed to refresh analytics.", error },
-        { status: 500 }
-      );
-    }
-
-    // ✅ 3️⃣ Return Success Response
-    return NextResponse.json({
-      success: true,
-      message: "Giveaway analytics successfully refreshed.",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    console.error("Unexpected Error:", err);
-    return NextResponse.json(
-      { success: false, message: "Internal server error.", error: err },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, analytics: data });
+  } catch (err: any) {
+    console.error("analytics refresh error", err);
+    return NextResponse.json({ success: false, error: err?.message ?? "Server error" }, { status: 500 });
   }
 }
