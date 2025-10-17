@@ -10,6 +10,7 @@ import { ToastWrapper } from "@/components/ui/use-toast";
 import ProgressBarProvider from "@/components/ui/ProgressBarProvider";
 import GlobalCelebrationListener from "@/components/celebrations/GlobalCelebrationListener";
 import { createClient } from "@/config/supabase"; // ✅ Supabase client
+import { WinnerProvider } from "@/context/WinnerContext"; // ✅ Added provider
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -22,7 +23,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     const supabase = createClient();
 
     async function fetchUserRole() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session?.user) {
         setUserRole("guest");
         return;
@@ -88,16 +92,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body className="bg-gray-50 text-gray-800 font-inter min-h-screen">
-        <ProgressBarProvider>
-          <ToastWrapper>
-            {/* Notifications & realtime global celebration */}
-            <NotificationListener />
-            <GlobalCelebrationListener userRole={userRole} /> {/* ✅ Dynamic role */}
+        <WinnerProvider>
+          <ProgressBarProvider>
+            <ToastWrapper>
+              {/* Notifications & realtime global celebration */}
+              <NotificationListener />
+              <GlobalCelebrationListener userRole={userRole} /> {/* ✅ Dynamic role */}
 
-            {/* Page Content */}
-            <main>{children}</main>
-          </ToastWrapper>
-        </ProgressBarProvider>
+              {/* Page Content */}
+              <main>{children}</main>
+            </ToastWrapper>
+          </ProgressBarProvider>
+        </WinnerProvider>
 
         {/* Subtle install prompt */}
         <AnimatePresence>
