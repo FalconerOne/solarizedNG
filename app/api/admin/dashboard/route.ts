@@ -1,56 +1,63 @@
+// app/api/admin/dashboard/route.ts
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import { getDashboardData } from "@/lib/dashboardData";
+import { createClient } from "@supabase/supabase-js";
+
+/**
+ * Admin Dashboard: Aggregated stats endpoint.
+ * GET will return summary stats: total_giveaways, active_giveaways, participants_count, recent_winners
+ *
+ * Server-only: uses SUPABASE_SERVICE_ROLE_KEY
+ */
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
 
 export async function GET() {
-  const supabase = createRouteHandlerClient({ cookies });
-
   try {
-    // 🔒 1️⃣ Get session and validate user role
-    const {
-      data: { user },
-      error: sessionError,
-    } = await supabase.auth.getUser();
+    // Total giveaways
+    const [{ count: totalGiveaways }, { count: activeGiveaways }] = await Promise.all([
+      admin.from("giveaways").select("id", { count: "exact", head: true }),
+      admin
+        .from("giveaways")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active"),
+    ]);
 
-    if (sessionError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized: No active session" },
-        { status: 401 }
-      );
-    }
+    // Total participants
+    const { count: participantsCount } = await admin
+      .from("participants")
+      .select("id", { count: "exact", head: true });
 
-    // Fetch user role securely
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    // Recent winners
+    const { data: recentWinners } = await admin
+      .from("winner_events")
+      .select("id, giveaway_title, winner_name, prize_name, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10);
 
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
-    }
+    // Simple analytics aggregates (views, referrals)
+    const { data: analytics } = await admin
+      .from("admin_analytics")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20);
 
-    if (profile.role !== "admin") {
-      return NextResponse.json(
-        { error: "Access denied: Admins only" },
-        { status: 403 }
-      );
-    }
-
-    // 🧮 2️⃣ Fetch dashboard metrics using existing server function
-    const dashboardData = await getDashboardData();
-
-    // ✅ 3️⃣ Return JSON response
-    return NextResponse.json({ success: true, data: dashboardData });
-  } catch (error: any) {
-    console.error("Admin Dashboard API Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      stats: {
+        totalGiveaways: totalGiveaways ?? 0,
+        activeGiveaways: activeGiveaways ?? 0,
+        participantsCount: participantsCount ?? 0,
+        recentWinners: recentWinners ?? [],
+        analytics: analytics ?? [],
+      },
+    });
+  } catch (err: any) {
+    console.error("dashboard route error", err);
+    return NextResponse.json({ success: false, error: err?.message ?? "Server error" }, { status: 500 });
   }
 }
