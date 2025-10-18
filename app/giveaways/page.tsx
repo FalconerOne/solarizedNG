@@ -1,114 +1,290 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import JoinGiveawayModal from "@/components/giveaways/JoinGiveawayModal";
-import { Card, CardContent } from "@/components/ui/card";
+import confetti from "canvas-confetti";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { SkillLinkBanner } from "@/components/SkillLinkBanner";
 
-export default function GiveawaysPage() {
+type GiveawayRow = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: "active" | "ended" | string;
+  winner_id?: string | null;
+  winner_name?: string | null;
+  created_at: string;
+  ended_at?: string | null;
+};
+
+export default function AdminGiveawaysPage() {
   const supabase = createClientComponentClient();
-  const [giveaways, setGiveaways] = useState<any[]>([]);
+  const [giveaways, setGiveaways] = useState<GiveawayRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedGiveaway, setSelectedGiveaway] = useState<any>(null);
-  const [user, setUser] = useState<any>(null);
+  const [celebrating, setCelebrating] = useState(false);
+  const [userRole, setUserRole] = useState<string>("guest");
 
+  // --- fetch user role (to ensure admin-only UI where needed)
   useEffect(() => {
-    const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-    };
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          setUserRole("guest");
+          return;
+        }
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        if (!error && data?.role) setUserRole(data.role);
+        else setUserRole("user");
+      } catch (err) {
+        console.error("Failed to fetch user/role:", err);
+        setUserRole("guest");
+      }
+    })();
+  }, [supabase]);
 
-    const fetchGiveaways = async () => {
-      setLoading(true);
+  // --- confetti helper
+  const launchConfetti = useCallback(() => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+    (function frame() {
+      confetti({
+        ...defaults,
+        particleCount: 5,
+        origin: { x: Math.random(), y: Math.random() - 0.2 },
+      });
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    })();
+  }, []);
+
+  // --- load giveaways
+  const fetchGiveaways = useCallback(async () => {
+    setLoading(true);
+    try {
       const { data, error } = await supabase
         .from("giveaways")
         .select("*")
-        .order("created_at", { ascending: false });
-      if (error) console.error(error);
-      else setGiveaways(data || []);
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setGiveaways((data as GiveawayRow[]) || []);
+    } catch (err) {
+      console.error("Error fetching giveaways:", err);
+      toast.error("Failed to fetch giveaways.");
+    } finally {
       setLoading(false);
-    };
-
-    fetchUser();
-    fetchGiveaways();
+    }
   }, [supabase]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[70vh] text-gray-600">
-        <Loader2 className="animate-spin w-6 h-6 mr-2" /> Loading Giveaways...
-      </div>
-    );
-  }
+  useEffect(() => {
+    fetchGiveaways();
+  }, [fetchGiveaways]);
+
+  // --- finalize winner flow
+  const finalizeWinner = async (giveawayId: string) => {
+    if (userRole !== "admin") {
+      toast.error("Only admins can finalize winners.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // fetch participants (light)
+      const { data: participants, error: pError } = await supabase
+        .from("participants")
+        .select("user_id, display_name")
+        .eq("giveaway_id", giveawayId);
+
+      if (pError) throw pError;
+      if (!participants || participants.length === 0) {
+        toast.error("No participants found.");
+        return;
+      }
+
+      const winner =
+        participants[Math.floor(Math.random() * participants.length)];
+
+      // update giveaway
+      const { error: updateError } = await supabase
+        .from("giveaways")
+        .update({
+          winner_id: winner.user_id,
+          winner_name: winner.display_name || null,
+          status: "ended",
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", giveawayId);
+
+      if (updateError) throw updateError;
+
+      // create notification (broadcast)
+      const message = `The giveaway "${giveawayId}" has a winner: ${winner.display_name || "Anonymous"}`;
+      const { error: notifError } = await supabase.from("notifications").insert([
+        {
+          type: "winner_announcement",
+          title: "🎉 Winner Announced!",
+          message,
+          prize_image: null,
+          target_user: null, // broadcast to all
+        },
+      ]);
+
+      if (notifError) console.warn("Notification insert warning:", notifError);
+
+      // local feedback
+      toast.success("Winner finalized — broadcasting celebration!");
+      launchConfetti();
+      setCelebrating(true);
+      setTimeout(() => setCelebrating(false), 7000);
+
+      // refresh list
+      fetchGiveaways();
+    } catch (err) {
+      console.error("Finalize winner error:", err);
+      toast.error("Failed to finalize winner.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- listen for global winner announcements (notifications table)
+  useEffect(() => {
+    const channel = supabase
+      .channel("global-winner-notifications")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications" },
+        (payload) => {
+          try {
+            const notif = payload.new as any;
+            if (notif?.type === "winner_announcement") {
+              // role-based masking: only show full message to privileged roles
+              const allowedRoles = ["admin", "supervisor", "activated"];
+              const displayMessage =
+                allowedRoles.includes(userRole) || notif.target_user
+                  ? notif.message
+                  : "🎉 A winner has been announced! Activate your account to view details.";
+
+              // show confetti + popup toast
+              launchConfetti();
+              toast(displayMessage);
+              setCelebrating(true);
+              setTimeout(() => setCelebrating(false), 7000);
+            }
+          } catch (err) {
+            console.error("Realtime notif handling error:", err);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, launchConfetti, userRole]);
+
+  // --- visual shimmer background for celebration (soft gold wave)
+  const shimmer = (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center"
+    >
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-r from-yellow-50 via-yellow-100 to-white opacity-30 blur-[30px] animate-[shimmer_4s_linear_infinite]"
+        style={{
+          mixBlendMode: "screen",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer_4s_linear_infinite {
+          0% { transform: translateX(-40%) scale(1.02); opacity: 0.18; }
+          50% { transform: translateX(0%) scale(1.03); opacity: 0.34; }
+          100% { transform: translateX(40%) scale(1.02); opacity: 0.18; }
+        }
+      `}</style>
+    </motion.div>
+  );
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-indigo-700 text-center">
-        Available Giveaways 🎉
-      </h1>
+    <div className="p-6 md:p-10 space-y-6">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }}>
+        <h1 className="text-3xl font-semibold">🎁 Admin — Giveaways</h1>
+        <p className="text-gray-500">Manage giveaways, finalize winners and broadcast celebrations.</p>
+      </motion.div>
 
-      {giveaways.length === 0 ? (
-        <p className="text-gray-500 text-center">No active giveaways at the moment.</p>
-      ) : (
-        
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {giveaways.map((g) => (
-            <Card
-              key={g.id}
-              className="border border-gray-200 shadow-sm hover:shadow-lg transition rounded-xl bg-white"
-              <div className="relative w-full h-48 rounded-t-xl overflow-hidden bg-black">
-              
-  {g.video_url ? (
-    <video
-      src={g.video_url}
-      className="w-full h-full object-cover"
-      muted
-      loop
-      autoPlay
-      playsInline
-    />
-  ) : (
-    <img
-      src={g.image_url || "/default-prize.jpg"}
-      alt={g.title}
-      className="w-full h-full object-cover"
-    />
-  )}
-  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-</div>
-              <CardContent className="p-4">
-                <h2 className="text-lg font-semibold text-gray-900 truncate">{g.title}</h2>
-                <p className="text-sm text-gray-500 line-clamp-2">{g.description}</p>
-                <p className="mt-2 text-sm font-medium">
-                  Activation Fee:{" "}
-                  <span className="text-indigo-600">
-                    {g.activation_fee > 0 ? `$${g.activation_fee}` : "Free"}
-                  </span>
-                </p>
-                <Button
-                  onClick={() => setSelectedGiveaway(g)}
-                  className="mt-3 w-full bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  Join Now
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {loading && (
+        <div className="text-gray-500">Loading giveaways — please wait...</div>
       )}
 
-      {/* Modal for joining giveaway */}
-      {selectedGiveaway && user && (
-        <JoinGiveawayModal
-          open={!!selectedGiveaway}
-          onClose={() => setSelectedGiveaway(null)}
-          giveaway={selectedGiveaway}
-          userId={user.id}
-        />
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {giveaways.map((g) => (
+          <Card key={g.id} className="hover:shadow-md transition">
+            <CardHeader>
+              <CardTitle className="text-lg">{g.title}</CardTitle>
+              <div className="ml-auto">
+                <Badge variant={g.status === "active" ? "default" : "secondary"}>
+                  {g.status === "active" ? "Active" : "Ended"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-600 mb-3">{g.description}</p>
+
+              {g.status === "active" ? (
+                <Button onClick={() => finalizeWinner(g.id)} className="w-full">
+                  Finalize Winner
+                </Button>
+              ) : (
+                <div className="text-sm text-green-600">Winner finalized 🎉</div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* SkillLink rotating banner */}
+      <div className="pt-8">
+        <SkillLinkBanner />
+      </div>
+
+      {/* Celebration overlay with shimmer */}
+      {celebrating && (
+        <>
+          {shimmer}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: "spring", duration: 0.45 }}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+          >
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-[90%] text-center">
+              <h2 className="text-2xl font-bold mb-2">🎊 Winner Announced!</h2>
+              <p className="text-gray-600 mb-4">A winner has been finalized and a celebration is being broadcast to all connected users.</p>
+              <Button onClick={() => { setCelebrating(false); }} className="bg-blue-600 text-white">
+                Close
+              </Button>
+            </div>
+          </motion.div>
+        </>
       )}
     </div>
   );
