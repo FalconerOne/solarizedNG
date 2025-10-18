@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
@@ -19,6 +19,13 @@ export default function GlobalCelebrationListener() {
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 🔊 Fanfare sound (short celebration audio)
+  useEffect(() => {
+    audioRef.current = new Audio("/sounds/fanfare.mp3");
+    audioRef.current.volume = 0.8;
+  }, []);
 
   // 🎯 Load user info
   useEffect(() => {
@@ -39,53 +46,58 @@ export default function GlobalCelebrationListener() {
     loadUser();
   }, [supabase]);
 
-  // 🎊 Trigger confetti animation
+  // 🎊 Confetti animation (responsive)
   const triggerConfetti = useCallback(() => {
     const duration = 3500;
     const end = Date.now() + duration;
 
     (function frame() {
+      const particleCount = window.innerWidth < 640 ? 2 : 4;
       confetti({
-        particleCount: 4,
+        particleCount,
         angle: 60,
         spread: 55,
         origin: { x: 0 },
       });
       confetti({
-        particleCount: 4,
+        particleCount,
         angle: 120,
         spread: 55,
         origin: { x: 1 },
       });
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
+      if (Date.now() < end) requestAnimationFrame(frame);
     })();
   }, []);
 
-  // 🔔 Listen for new notifications (Supabase realtime)
+  // 🎧 Trigger sound safely
+  const playFanfare = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current
+        .play()
+        .catch(() => console.warn("Autoplay prevented; will play on user gesture"));
+    }
+  }, []);
+
+  // 🔔 Supabase realtime listener
   useEffect(() => {
     const channel = supabase
       .channel("public:notifications")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-        },
+        { event: "INSERT", schema: "public", table: "notifications" },
         async (payload) => {
           const newNotification = payload.new as CelebrationData;
 
           if (newNotification.type === "winner_announcement") {
-            // Visibility rule enforcement
             let messageToShow = newNotification.message;
             if (
               userRole !== "admin" &&
               userRole !== "supervisor" &&
               userRole !== "activated"
             ) {
-              messageToShow = "🎉 A winner has been selected! (Activate your account to view full details)";
+              messageToShow =
+                "🎉 A winner has been selected! (Activate your account to view full details)";
             }
 
             setCelebration({
@@ -95,6 +107,8 @@ export default function GlobalCelebrationListener() {
             });
 
             triggerConfetti();
+            playFanfare();
+
             setTimeout(() => setCelebration(null), 7000);
           }
         }
@@ -104,52 +118,60 @@ export default function GlobalCelebrationListener() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, triggerConfetti, userRole]);
+  }, [supabase, triggerConfetti, playFanfare, userRole]);
 
-  // 🎭 UI Celebration Popup
+  // 🎭 Celebration popup UI
   return (
-    <AnimatePresence>
-      {celebration && (
-        <motion.div
-          key="celebration-modal"
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
+    <>
+      <AnimatePresence>
+        {celebration && (
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ type: "spring", duration: 0.6 }}
-            className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-[90%] text-center p-6 border border-gray-300 dark:border-gray-700"
+            key="celebration-modal"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
-            {celebration.image_url && (
-              <div className="mb-4">
-                <Image
-                  src={celebration.image_url}
-                  alt="Celebration"
-                  width={160}
-                  height={160}
-                  className="mx-auto rounded-xl object-cover"
-                />
-              </div>
-            )}
-            <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">
-              {celebration.title}
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              {celebration.message}
-            </p>
-            <button
-              onClick={() => setCelebration(null)}
-              className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.6 }}
+              className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full text-center p-4 sm:p-6 border border-gray-300 dark:border-gray-700"
             >
-              Close
-            </button>
+              {celebration.image_url && (
+                <div className="mb-4 flex justify-center">
+                  <Image
+                    src={celebration.image_url}
+                    alt="Celebration"
+                    width={160}
+                    height={160}
+                    className="rounded-xl object-cover"
+                  />
+                </div>
+              )}
+
+              <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">
+                {celebration.title}
+              </h2>
+
+              <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm sm:text-base px-1">
+                {celebration.message}
+              </p>
+
+              <button
+                onClick={() => setCelebration(null)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm sm:text-base transition"
+              >
+                Close
+              </button>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+
+      {/* Audio preload */}
+      <audio ref={audioRef} preload="auto" src="/sounds/fanfare.mp3" />
+    </>
   );
 }
