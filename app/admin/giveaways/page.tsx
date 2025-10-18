@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Loader2, Trophy, Sparkles } from "lucide-react";
+import { Loader2, Trophy, Sparkles, Lock } from "lucide-react";
 import confetti from "canvas-confetti";
 
 interface Giveaway {
@@ -17,16 +17,23 @@ interface Giveaway {
   winner_name?: string;
 }
 
+interface UserProfile {
+  id: string;
+  role: "admin" | "supervisor" | "user";
+  activated: boolean;
+  user_name: string;
+}
+
 export default function AdminGiveawaysPage() {
   const supabase = createClientComponentClient();
   const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const confettiRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    fetchGiveaways();
+    initPage();
 
-    // Subscribe to real-time changes for winner finalization
     const channel = supabase
       .channel("giveaway_winner_updates")
       .on(
@@ -42,9 +49,7 @@ export default function AdminGiveawaysPage() {
             prev.map((g) => (g.id === updated.id ? updated : g))
           );
 
-          if (updated.winner_id) {
-            launchConfetti();
-          }
+          if (updated.winner_id) launchConfetti();
         }
       )
       .subscribe();
@@ -54,11 +59,26 @@ export default function AdminGiveawaysPage() {
     };
   }, []);
 
-  async function fetchGiveaways() {
+  async function initPage() {
     setLoading(true);
+
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    if (authUser) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, role, activated, user_name")
+        .eq("id", authUser.id)
+        .single();
+
+      setUser(profile);
+    }
+
     const { data, error } = await supabase
       .from("giveaways")
-      .select("id, title, description, prize_image, status, winner_id")
+      .select("id, title, description, prize_image, status, winner_id, winner_name")
       .order("created_at", { ascending: false });
 
     if (error) console.error("Error fetching giveaways:", error);
@@ -84,6 +104,7 @@ export default function AdminGiveawaysPage() {
       .from("giveaways")
       .update({
         winner_id: winner.id,
+        winner_name: winner.user_name,
         status: "ended",
       })
       .eq("id", giveawayId);
@@ -95,26 +116,16 @@ export default function AdminGiveawaysPage() {
       alert(`Winner finalized: ${winner.user_name}`);
       launchConfetti();
       triggerGlobalCelebration(giveawayId, winner.user_name);
-      fetchGiveaways();
+      initPage();
     }
   }
 
   function launchConfetti() {
-    if (confettiRef.current) {
-      const canvas = confettiRef.current;
-      const myConfetti = confetti.create(canvas, { resize: true });
-      myConfetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-      });
-    } else {
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-      });
-    }
+    confetti({
+      particleCount: 150,
+      spread: 100,
+      origin: { y: 0.6 },
+    });
   }
 
   async function triggerGlobalCelebration(giveawayId: string, winnerName: string) {
@@ -126,6 +137,38 @@ export default function AdminGiveawaysPage() {
         created_at: new Date().toISOString(),
       },
     ]);
+  }
+
+  // 🔒 Masking Logic
+  function displayWinnerInfo(g: Giveaway) {
+    if (!g.winner_id) return null;
+
+    const name = g.winner_name || "Unknown";
+
+    // Admin or Supervisor → full name
+    if (user?.role === "admin" || user?.role === "supervisor") {
+      return <span className="font-semibold text-green-700">{name}</span>;
+    }
+
+    // Activated user → masked
+    if (user?.activated) {
+      const masked =
+        name.length > 3
+          ? name[0] + "*".repeat(name.length - 2) + name[name.length - 1]
+          : name[0] + "**";
+      return (
+        <span className="font-semibold text-yellow-700">
+          {masked} (Activated)
+        </span>
+      );
+    }
+
+    // Guest or Unactivated → hidden
+    return (
+      <span className="flex items-center gap-1 text-gray-500">
+        <Lock size={14} /> Winner Hidden — Activate to Reveal
+      </span>
+    );
   }
 
   return (
@@ -152,9 +195,7 @@ export default function AdminGiveawaysPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   {g.title}
-                  {g.status === "ended" && (
-                    <Sparkles className="text-yellow-400" />
-                  )}
+                  {g.status === "ended" && <Sparkles className="text-yellow-400" />}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -168,7 +209,7 @@ export default function AdminGiveawaysPage() {
                 )}
                 {g.status === "ended" && g.winner_id ? (
                   <div className="bg-green-100 text-green-800 p-3 rounded-xl">
-                    🎉 Winner Finalized
+                    🎉 Winner: {displayWinnerInfo(g)}
                   </div>
                 ) : (
                   <Button
