@@ -21,10 +21,10 @@ export default function GlobalCelebrationListener() {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 🔊 Fanfare sound (short celebration audio)
+  // 🔊 Load short fanfare sound
   useEffect(() => {
     audioRef.current = new Audio("/sounds/fanfare.mp3");
-    audioRef.current.volume = 0.8;
+    audioRef.current.volume = 0.85;
   }, []);
 
   // 🎯 Load user info
@@ -35,18 +35,18 @@ export default function GlobalCelebrationListener() {
       } = await supabase.auth.getUser();
       setSessionUserId(user?.id || null);
 
-      // Get user role from custom table or metadata
       const { data } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user?.id)
         .single();
+
       setUserRole(data?.role || "guest");
     };
     loadUser();
   }, [supabase]);
 
-  // 🎊 Confetti animation (responsive)
+  // 🎉 Confetti animation
   const triggerConfetti = useCallback(() => {
     const duration = 3500;
     const end = Date.now() + duration;
@@ -69,13 +69,13 @@ export default function GlobalCelebrationListener() {
     })();
   }, []);
 
-  // 🎧 Trigger sound safely
+  // 🎧 Fanfare audio trigger
   const playFanfare = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current
         .play()
-        .catch(() => console.warn("Autoplay prevented; will play on user gesture"));
+        .catch(() => console.warn("Autoplay blocked (mobile)."));
     }
   }, []);
 
@@ -86,7 +86,7 @@ export default function GlobalCelebrationListener() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
-        async (payload) => {
+        (payload) => {
           const newNotification = payload.new as CelebrationData;
 
           if (newNotification.type === "winner_announcement") {
@@ -119,6 +119,18 @@ export default function GlobalCelebrationListener() {
       supabase.removeChannel(channel);
     };
   }, [supabase, triggerConfetti, playFanfare, userRole]);
+
+  // 🧪 Manual test trigger for Admins
+  const handleTestCelebration = () => {
+    setCelebration({
+      title: "🎊 Test Celebration",
+      message: "This is a demo winner popup! Confetti + sound + fade-out test.",
+      image_url: "/icons/icon-512x512.png",
+    });
+    triggerConfetti();
+    playFanfare();
+    setTimeout(() => setCelebration(null), 7000);
+  };
 
   // 🎭 Celebration popup UI
   return (
@@ -170,8 +182,20 @@ export default function GlobalCelebrationListener() {
         )}
       </AnimatePresence>
 
-      {/* Audio preload */}
+      {/* 🔊 Audio preload */}
       <audio ref={audioRef} preload="auto" src="/sounds/fanfare.mp3" />
+
+      {/* 🧪 Visible only to Admin */}
+      {userRole === "admin" && (
+        <div className="fixed bottom-5 right-5 z-[9999]">
+          <button
+            onClick={handleTestCelebration}
+            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-full text-xs shadow-lg"
+          >
+            Test Celebration 🎉
+          </button>
+        </div>
+      )}
     </>
   );
 }
