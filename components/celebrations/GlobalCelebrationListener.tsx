@@ -1,124 +1,81 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import confetti from "canvas-confetti";
+import { useEffect, useState } from "react";
 import { createClient } from "@/config/supabase";
-import { motion, AnimatePresence } from "framer-motion";
+import GlobalCelebrationPopup from "@/components/GlobalCelebrationPopup";
 
-interface GlobalCelebrationListenerProps {
-  userRole?: string;
-}
-
-interface NotificationPayload {
+interface CelebrationEvent {
   id: string;
-  type: string;
   title: string;
   message: string;
-  target_user: string | null;
+  prize_image?: string | null;
+  type: string;
   created_at: string;
-  is_global?: boolean;
 }
 
 export default function GlobalCelebrationListener({
   userRole = "guest",
-}: GlobalCelebrationListenerProps) {
-  const supabase = createClient();
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [message, setMessage] = useState("");
-  const [title, setTitle] = useState("");
-  const confettiInterval = useRef<NodeJS.Timeout | null>(null);
-
-  // 🎉 Confetti effect
-  const triggerConfetti = () => {
-    const duration = 4000;
-    const end = Date.now() + duration;
-    const defaults = { startVelocity: 25, spread: 360, ticks: 60, zIndex: 9999 };
-
-    const randomInRange = (min: number, max: number) =>
-      Math.random() * (max - min) + min;
-
-    function frame() {
-      confetti({
-        ...defaults,
-        particleCount: 3,
-        origin: {
-          x: randomInRange(0.1, 0.9),
-          y: Math.random() - 0.2,
-        },
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    }
-
-    frame();
-  };
-
-  // 🧠 Auto-hide celebration
-  const startAutoCleanup = () => {
-    if (confettiInterval.current) clearTimeout(confettiInterval.current);
-    confettiInterval.current = setTimeout(() => {
-      setShowCelebration(false);
-      setMessage("");
-      setTitle("");
-    }, 10000); // hide after 10s
-  };
+}: {
+  userRole?: string;
+}) {
+  const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
 
   useEffect(() => {
+    const supabase = createClient();
+
+    console.log("🎧 Global Celebration Listener active...");
+
     const channel = supabase
-      .channel("global-winner-celebrations")
+      .channel("global_winner_notifications")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: "type=eq.winner_announcement",
+        },
         (payload) => {
-          const newNotif = payload.new as NotificationPayload;
-          if (newNotif.type === "winner_announcement") {
-            // Role-based masking
-            const visible =
-              userRole === "admin" ||
-              userRole === "activated_user" ||
-              userRole === "supervisor";
+          console.log("🎉 Winner announcement received:", payload.new);
 
-            const safeTitle = newNotif.title || "🎉 New Winner!";
-            const safeMessage = visible
-              ? newNotif.message
-              : "🎉 A new giveaway winner has been announced! Activate your account to see the details.";
+          const newEvent = payload.new as CelebrationEvent;
 
-            setTitle(safeTitle);
-            setMessage(safeMessage);
-            setShowCelebration(true);
-            triggerConfetti();
-            startAutoCleanup();
-          }
+          // Set popup data
+          setCelebration({
+            id: newEvent.id,
+            title: newEvent.title || "🎉 Winner Announced!",
+            message:
+              newEvent.message ||
+              "A winner has been declared in one of the giveaways!",
+            prize_image: (newEvent as any).prize_image || null,
+            type: newEvent.type,
+            created_at: newEvent.created_at,
+          });
+
+          // Auto clear after popup hides
+          setTimeout(() => setCelebration(null), 10000);
         }
       )
       .subscribe();
 
     return () => {
+      console.log("🧹 Cleaning up Global Celebration Listener...");
       supabase.removeChannel(channel);
-      if (confettiInterval.current) clearTimeout(confettiInterval.current);
     };
-  }, [userRole]);
+  }, []);
 
+  // Render the popup only when a new celebration event arrives
   return (
-    <AnimatePresence>
-      {showCelebration && (
-        <motion.div
-          key="global-celebration-popup"
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          transition={{ duration: 0.4 }}
-          className="fixed bottom-6 right-6 bg-white shadow-2xl border border-indigo-200 rounded-2xl p-5 z-[9999] max-w-sm w-full flex flex-col gap-2"
-        >
-          <h3 className="text-lg font-semibold text-indigo-700">{title}</h3>
-          <p className="text-gray-700 text-sm">{message}</p>
-          <div className="text-xs text-gray-400 pt-2">
-            (Auto-closing in a few seconds)
-          </div>
-        </motion.div>
+    <>
+      {celebration && (
+        <GlobalCelebrationPopup
+          key={celebration.id}
+          title={celebration.title}
+          message={celebration.message}
+          prizeImage={celebration.prize_image}
+          userRole={userRole}
+        />
       )}
-    </AnimatePresence>
+    </>
   );
 }
