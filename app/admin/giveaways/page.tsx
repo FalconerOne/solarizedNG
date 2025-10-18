@@ -1,109 +1,121 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { toast } from 'sonner';
-import confetti from 'canvas-confetti';
+import { useEffect, useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import confetti from "canvas-confetti";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Database } from "@/lib/database.types";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { SkillLinkBanner } from "@/components/SkillLinkBanner";
+import { useUser } from "@supabase/auth-helpers-react";
 
-interface Giveaway {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  winner_id?: string | null;
-  winner_name?: string | null;
-}
+type Giveaway = Database["public"]["Tables"]["giveaways"]["Row"];
 
 export default function AdminGiveawaysPage() {
-  const supabase = createClientComponentClient();
+  const supabase = createClientComponentClient<Database>();
+  const { user } = useUser();
   const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [celebrating, setCelebrating] = useState(false);
 
-  // 🧹 Auto-clean expired notifications on mount
-  const cleanExpiredNotifications = useCallback(async () => {
-    try {
-      await supabase
-        .from('notifications')
-        .delete()
-        .lt('expires_at', new Date().toISOString());
-    } catch (error) {
-      console.error('Notification cleanup error:', error);
-    }
-  }, [supabase]);
-
-  // 🧠 Load all giveaways
-  const fetchGiveaways = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('giveaways')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) console.error('Fetch error:', error);
-    else setGiveaways(data || []);
-  }, [supabase]);
-
-  // 🥳 Confetti animation
-  const launchConfetti = () => {
-    const duration = 3 * 1000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1000 };
-
-    const interval: any = setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
-      if (timeLeft <= 0) return clearInterval(interval);
-
-      const particleCount = 50 * (timeLeft / duration);
+  // 🌈 Confetti Celebration
+  const launchConfetti = useCallback(() => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+    const frame = () => {
       confetti({
-        ...defaults,
-        particleCount,
-        origin: {
-          x: Math.random(),
-          y: Math.random() - 0.2,
-        },
+        particleCount: 4,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
       });
-    }, 250);
-  };
+      confetti({
+        particleCount: 4,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+      });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
+  }, []);
 
-  // 🎯 Finalize winner (RPC call)
+  // 🧩 Fetch Giveaways
+  const fetchGiveaways = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("giveaways")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) console.error(error);
+    else setGiveaways(data || []);
+    setLoading(false);
+  }, [supabase]);
+
+  // ⚡ Finalize Winner
   const finalizeWinner = async (giveawayId: string) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase.rpc('finalize_giveaway_winner', {
-        giveaway_id: giveawayId,
+      const { data: participants, error: participantsError } = await supabase
+        .from("participants")
+        .select("*")
+        .eq("giveaway_id", giveawayId);
+
+      if (participantsError) throw participantsError;
+      if (!participants?.length) {
+        toast.error("No participants found for this giveaway.");
+        return;
+      }
+
+      const winner =
+        participants[Math.floor(Math.random() * participants.length)];
+
+      // 🏆 Update giveaway with winner
+      const { error: updateError } = await supabase
+        .from("giveaways")
+        .update({
+          winner_id: winner.user_id,
+          status: "ended",
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", giveawayId);
+
+      if (updateError) throw updateError;
+
+      // 🔔 Broadcast Realtime Event
+      await supabase.channel("winner_announcements").send({
+        type: "broadcast",
+        event: "winner_finalized",
+        payload: {
+          giveaway_id: giveawayId,
+          winner_name: winner.display_name || "Anonymous",
+          prize: "🎁 Giveaway Winner Announced!",
+        },
       });
 
-      if (error) throw error;
-
-      toast.success('Winner finalized successfully!');
+      toast.success("Winner finalized successfully!");
       launchConfetti();
       fetchGiveaways();
     } catch (err: any) {
-      console.error('Finalize winner error:', err);
-      toast.error('Failed to finalize winner.');
-    } finally {
-      setLoading(false);
+      console.error(err);
+      toast.error("Error finalizing winner.");
     }
   };
 
-  // 📡 Realtime broadcast listener
+  // 🔔 Realtime Celebration Listener
   useEffect(() => {
     const channel = supabase
-      .channel('global-winner-broadcast')
+      .channel("winner_announcements")
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        (payload) => {
-          const notification = payload.new as any;
-          if (notification.type === 'winner_announcement') {
-            // Masked or full message based on visibility
-            const message =
-              notification.target_user === null
-                ? '🎉 A giveaway just had a winner! Activate your account to view details.'
-                : `🎊 ${notification.title}: ${notification.message}`;
-            toast.info(message);
-            launchConfetti();
-          }
+        "broadcast",
+        { event: "winner_finalized" },
+        (payload: any) => {
+          setCelebrating(true);
+          launchConfetti();
+          toast(`🎉 ${payload.payload.winner_name} just won!`);
+          setTimeout(() => setCelebrating(false), 6000);
         }
       )
       .subscribe();
@@ -111,48 +123,97 @@ export default function AdminGiveawaysPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, [supabase, launchConfetti]);
 
+  // 🔁 Initial Load
   useEffect(() => {
-    cleanExpiredNotifications();
     fetchGiveaways();
-  }, [fetchGiveaways, cleanExpiredNotifications]);
+  }, [fetchGiveaways]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-gray-400">
+        Loading giveaways...
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">🎁 Admin Giveaways</h1>
-      {giveaways.length === 0 && (
-        <p className="text-muted-foreground">No giveaways yet.</p>
-      )}
+    <div className="space-y-6 px-4 md:px-8">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Admin — Giveaways
+        </h1>
+        <p className="text-gray-500">Manage, monitor, and celebrate winners.</p>
+      </motion.div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {giveaways.map((giveaway) => (
-          <Card key={giveaway.id} className="shadow-md">
+      {/* 🌍 Giveaway List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {giveaways.map((g) => (
+          <Card key={g.id} className="hover:shadow-md transition">
             <CardHeader>
-              <CardTitle>{giveaway.title}</CardTitle>
+              <CardTitle className="text-lg">{g.title}</CardTitle>
+              <Badge
+                variant={
+                  g.status === "active"
+                    ? "default"
+                    : g.status === "ended"
+                    ? "secondary"
+                    : "outline"
+                }
+              >
+                {g.status === "ended" ? "Ended" : "Active"}
+              </Badge>
             </CardHeader>
             <CardContent>
-              <p className="text-sm mb-3">{giveaway.description}</p>
-              <p className="text-xs mb-2">
-                Status: <strong>{giveaway.status}</strong>
-              </p>
-              {giveaway.winner_name ? (
-                <p className="text-green-600 font-medium">
-                  Winner: {giveaway.winner_name}
-                </p>
-              ) : (
+              <p className="text-sm text-gray-600 mb-2">{g.description}</p>
+              {g.status === "active" && (
                 <Button
-                  disabled={loading}
-                  onClick={() => finalizeWinner(giveaway.id)}
-                  className="mt-2"
+                  onClick={() => finalizeWinner(g.id)}
+                  className="w-full mt-3"
                 >
-                  {loading ? 'Processing...' : 'Finalize Winner'}
+                  Finalize Winner
                 </Button>
+              )}
+              {g.status === "ended" && (
+                <div className="mt-2 text-sm text-green-600">
+                  Winner finalized! 🎉
+                </div>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* 🔗 SkillLink Africa Banner */}
+      <div className="pt-8">
+        <SkillLinkBanner />
+      </div>
+
+      {/* 🥳 Celebration Overlay */}
+      {celebrating && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            className="bg-white p-6 rounded-2xl shadow-xl text-center"
+          >
+            <h2 className="text-2xl font-bold mb-2">🎊 Winner Announced!</h2>
+            <p className="text-gray-600">
+              Celebration in progress — everyone sees it live!
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }
