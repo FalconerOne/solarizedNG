@@ -19,15 +19,17 @@ export default function GlobalCelebrationListener() {
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [showTestButton, setShowTestButton] = useState(false);
+  const hideTimeout = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 🔊 Load short fanfare sound
+  // 🔊 Load fanfare sound
   useEffect(() => {
     audioRef.current = new Audio("/sounds/fanfare.mp3");
     audioRef.current.volume = 0.85;
   }, []);
 
-  // 🎯 Load user info
+  // 🧭 Load user + role
   useEffect(() => {
     const loadUser = async () => {
       const {
@@ -69,7 +71,7 @@ export default function GlobalCelebrationListener() {
     })();
   }, []);
 
-  // 🎧 Fanfare audio trigger
+  // 🔊 Fanfare trigger
   const playFanfare = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
@@ -88,49 +90,64 @@ export default function GlobalCelebrationListener() {
         { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
           const newNotification = payload.new as CelebrationData;
-
           if (newNotification.type === "winner_announcement") {
-            let messageToShow = newNotification.message;
+            let msg = newNotification.message;
             if (
               userRole !== "admin" &&
               userRole !== "supervisor" &&
               userRole !== "activated"
             ) {
-              messageToShow =
+              msg =
                 "🎉 A winner has been selected! (Activate your account to view full details)";
             }
-
             setCelebration({
               title: newNotification.title,
-              message: messageToShow,
+              message: msg,
               image_url: newNotification.image_url,
             });
-
             triggerConfetti();
             playFanfare();
-
             setTimeout(() => setCelebration(null), 7000);
           }
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [supabase, triggerConfetti, playFanfare, userRole]);
 
-  // 🧪 Manual test trigger for Admins
+  // 🧪 Admin test trigger
   const handleTestCelebration = () => {
     setCelebration({
       title: "🎊 Test Celebration",
-      message: "This is a demo winner popup! Confetti + sound + fade-out test.",
+      message: "Demo winner popup! Confetti + sound + fade-out verification.",
       image_url: "/icons/icon-512x512.png",
     });
     triggerConfetti();
     playFanfare();
     setTimeout(() => setCelebration(null), 7000);
   };
+
+  // ⏱️ Auto-hide + reactivation logic
+  useEffect(() => {
+    if (userRole === "admin") {
+      setShowTestButton(true);
+      if (hideTimeout.current) clearTimeout(hideTimeout.current);
+      hideTimeout.current = setTimeout(() => setShowTestButton(false), 30000);
+    }
+  }, [userRole]);
+
+  // ⌨️ Reactivate with Shift + C
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.shiftKey && e.key.toLowerCase() === "c" && userRole === "admin") {
+        setShowTestButton((prev) => !prev);
+        if (hideTimeout.current) clearTimeout(hideTimeout.current);
+        hideTimeout.current = setTimeout(() => setShowTestButton(false), 30000);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [userRole]);
 
   // 🎭 Celebration popup UI
   return (
@@ -162,15 +179,12 @@ export default function GlobalCelebrationListener() {
                   />
                 </div>
               )}
-
               <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">
                 {celebration.title}
               </h2>
-
               <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm sm:text-base px-1">
                 {celebration.message}
               </p>
-
               <button
                 onClick={() => setCelebration(null)}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm sm:text-base transition"
@@ -185,16 +199,21 @@ export default function GlobalCelebrationListener() {
       {/* 🔊 Audio preload */}
       <audio ref={audioRef} preload="auto" src="/sounds/fanfare.mp3" />
 
-      {/* 🧪 Visible only to Admin */}
-      {userRole === "admin" && (
-        <div className="fixed bottom-5 right-5 z-[9999]">
+      {/* 🧪 Admin floating test button */}
+      {userRole === "admin" && showTestButton && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed bottom-5 right-5 z-[9999]"
+        >
           <button
             onClick={handleTestCelebration}
             className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-full text-xs shadow-lg"
           >
             Test Celebration 🎉
           </button>
-        </div>
+        </motion.div>
       )}
     </>
   );
